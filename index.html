@@ -215,7 +215,8 @@
     .section {
       display: none;
       padding: 32px 36px;
-      max-width: 1100px
+      max-width: 1200px;
+      margin: 0 auto;
     }
 
     .section.active {
@@ -1157,6 +1158,21 @@
       gap: 16px
     }
 
+    #mobile-menu-btn {
+      display: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 10px 16px;
+      margin: 16px 16px 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text);
+      align-items: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+    }
+
     @media(max-width:900px) {
       .two-col {
         grid-template-columns: 1fr
@@ -1164,6 +1180,28 @@
 
       .checklist {
         grid-template-columns: 1fr
+      }
+
+      #sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+      }
+
+      #sidebar.open {
+        transform: translateX(0);
+      }
+
+      #main {
+        margin-left: 0;
+      }
+
+      #mobile-menu-btn {
+        display: inline-flex;
+      }
+
+      .section {
+        padding: 20px 16px;
       }
     }
   </style>
@@ -1206,6 +1244,7 @@
 
   <!-- MAIN CONTENT -->
   <main id="main">
+    <button id="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
 
     <!-- ===== SECTION 1: DASHBOARD ===== -->
     <section id="s-dashboard" class="section active">
@@ -4387,6 +4426,8 @@
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       document.getElementById('s-' + id).classList.add('active');
       event.currentTarget.classList.add('active');
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.classList.remove('open');
     }
 
     // ===== TAB SWITCHING =====
