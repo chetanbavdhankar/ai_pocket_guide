@@ -5319,16 +5319,17 @@ class="num">100_000</span>)
     function renderTriviaBrowse() {
       const container = document.getElementById('browse-mode');
       const cats = {};
-      triviaData.forEach((q, i) => {
+      triviaData.forEach(q => {
         if (!cats[q.cat]) cats[q.cat] = [];
-        cats[q.cat].push({ ...q, idx: i + 1 });
+        cats[q.cat].push(q);
       });
       let html = '';
+      let qNum = 1;
       Object.entries(cats).forEach(([cat, qs]) => {
         html += `<h3 class="subsection">${cat}</h3>`;
         qs.forEach(q => {
           html += `<div class="accordion-item" onclick="toggleItem(this)">
-        <div class="accordion-header"><span>Q${q.idx}: ${q.q}</span><span class="accordion-arrow">▼</span></div>
+        <div class="accordion-header"><span>Q${qNum++}: ${q.q}</span><span class="accordion-arrow">▼</span></div>
         <div class="accordion-body"><p>${q.a}</p></div>
       </div>`;
         });
