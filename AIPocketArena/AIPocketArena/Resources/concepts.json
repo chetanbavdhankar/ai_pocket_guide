@@ -1,0 +1,713 @@
+{
+  "concepts": [
+    {
+      "id": "bpe",
+      "term": "BPE (Byte Pair Encoding)",
+      "category": "tokenization",
+      "difficulty": 1,
+      "oneLiner": "Iteratively merges the most frequent adjacent byte pairs to build a subword vocabulary.",
+      "explanation": "BPE starts with individual characters and repeatedly merges the most common adjacent pair into a single token. This creates a merge table applied greedily at inference. It handles rare words by decomposing them into known subword units, eliminating unknown tokens. Most modern LLMs (GPT-2/3/4, LLaMA, Mistral) use BPE or its byte-level variant.",
+      "interviewQuestion": "How does BPE handle words it has never seen during training?",
+      "modelAnswer": "BPE decomposes unseen words into known subword units by applying its merge table greedily. Since it starts from individual bytes or characters, any word can be represented as a sequence of subword tokens. This means there are effectively no unknown tokens — every input can be encoded.",
+      "distractors": [
+        "Splits text into individual characters and looks up each in a fixed character-level vocabulary.",
+        "Uses a neural network to predict the optimal tokenization for each input string at runtime.",
+        "Maintains a hash table of all words seen in training and falls back to <UNK> for unseen words."
+      ],
+      "cloze": { "prompt": "BPE iteratively merges the most frequent adjacent ____ to build a subword vocabulary.", "answer": "byte pairs" },
+      "tradeoff": null,
+      "tags": ["tokenization", "subword", "vocabulary"],
+      "related": ["wordpiece", "sentencepiece", "tiktoken"]
+    },
+    {
+      "id": "wordpiece",
+      "term": "WordPiece",
+      "category": "tokenization",
+      "difficulty": 1,
+      "oneLiner": "Like BPE but merges maximize likelihood of a unigram language model over the corpus.",
+      "explanation": "WordPiece is similar to BPE but uses a likelihood-based criterion for merges rather than frequency. Sub-words that aren't at the start of a word are prefixed with '##'. It was developed at Google and used in BERT, DistilBERT, and related models. The typical vocabulary size is around 30k tokens.",
+      "interviewQuestion": "What is the key difference between WordPiece and BPE, and when would you choose one over the other?",
+      "modelAnswer": "BPE merges based on frequency counts while WordPiece merges based on maximizing the likelihood of a unigram language model. WordPiece tends to produce slightly better tokenizations for the corpus but is more computationally expensive to train. In practice, BPE is used in most generative LLMs while WordPiece is primarily used in BERT-family encoder models.",
+      "distractors": [
+        "Splits text at whitespace boundaries and maps each whole word to a fixed vocabulary index.",
+        "Uses a character-level CNN to produce token embeddings without any explicit vocabulary.",
+        "Applies regex-based rules to split text into morphological units like prefixes and suffixes."
+      ],
+      "cloze": { "prompt": "WordPiece prefixes continuation subwords with ____ to distinguish them from word-start tokens.", "answer": "##" },
+      "tradeoff": null,
+      "tags": ["tokenization", "subword", "BERT"],
+      "related": ["bpe", "sentencepiece", "tiktoken"]
+    },
+    {
+      "id": "sentencepiece",
+      "term": "SentencePiece",
+      "category": "tokenization",
+      "difficulty": 2,
+      "oneLiner": "Language-agnostic tokenizer that works on raw bytes, starting large and pruning by likelihood.",
+      "explanation": "SentencePiece uses a unigram language model approach: it starts with a large candidate vocabulary and iteratively removes tokens that contribute least to the corpus likelihood. It operates directly on raw Unicode or byte sequences, making it language-agnostic. Used in T5, LLaMA-1, Gemma, and PaLM.",
+      "interviewQuestion": "Why might you choose SentencePiece over BPE for a multilingual model?",
+      "modelAnswer": "SentencePiece operates on raw bytes/Unicode without requiring language-specific preprocessing like word segmentation. This makes it naturally multilingual — it handles CJK characters, Arabic, and other scripts without special tokenization rules. Its unigram model also tends to produce more linguistically meaningful subwords than frequency-based BPE.",
+      "distractors": [
+        "A tokenizer that requires separate language-specific rules for each supported language.",
+        "A character-level tokenizer that maps each Unicode codepoint to a unique token ID.",
+        "A tokenizer that uses a fixed dictionary of 100K English words plus transliteration for other languages."
+      ],
+      "cloze": { "prompt": "SentencePiece starts with a large vocabulary and ____ tokens that minimally decrease likelihood.", "answer": "prunes" },
+      "tradeoff": null,
+      "tags": ["tokenization", "multilingual", "unigram"],
+      "related": ["bpe", "wordpiece", "tiktoken"]
+    },
+    {
+      "id": "tiktoken",
+      "term": "Tiktoken",
+      "category": "tokenization",
+      "difficulty": 2,
+      "oneLiner": "Byte-level BPE on raw UTF-8 bytes — no unknown tokens ever, every byte sequence encodable.",
+      "explanation": "Tiktoken is OpenAI's byte-level BPE implementation used in GPT-3.5/4 and Codex. By operating on raw UTF-8 bytes rather than Unicode codepoints, it guarantees that any byte sequence can be tokenized — there are no unknown tokens. The cl100k_base encoding uses a 100K vocabulary and is the standard for OpenAI models.",
+      "interviewQuestion": "What advantage does byte-level BPE have over character-level BPE?",
+      "modelAnswer": "Byte-level BPE operates on the 256 possible byte values rather than Unicode codepoints, guaranteeing that any input can be tokenized without unknown tokens. It handles binary data, corrupted text, and any language encoding. Character-level BPE requires handling the full Unicode space and can encounter characters not in its vocabulary.",
+      "distractors": [
+        "A tokenizer that compresses text using Huffman coding before feeding it to the model.",
+        "A fixed 32K vocabulary tokenizer that maps common English words to single tokens.",
+        "A tokenizer that uses neural embeddings to determine token boundaries dynamically."
+      ],
+      "cloze": { "prompt": "Tiktoken uses byte-level BPE with the ____ encoding for GPT-4.", "answer": "cl100k_base" },
+      "tradeoff": null,
+      "tags": ["tokenization", "BPE", "OpenAI"],
+      "related": ["bpe", "wordpiece", "sentencepiece"]
+    },
+    {
+      "id": "rope",
+      "term": "RoPE (Rotary Position Embedding)",
+      "category": "embeddings-positional",
+      "difficulty": 2,
+      "oneLiner": "Encodes position by rotating query/key vectors, enabling relative position via dot-product decay.",
+      "explanation": "RoPE applies a rotation matrix to query and key vectors based on their position. The rotation angle depends on position, so the dot product between Q and K naturally encodes their relative distance. This allows length extrapolation (with techniques like YaRN/NTK scaling). Used in LLaMA, Mistral, and PaLM 2.",
+      "interviewQuestion": "How does RoPE encode relative position without explicit relative position embeddings?",
+      "modelAnswer": "RoPE rotates Q and K vectors by position-dependent angles. When computing Q·Kᵀ, the rotation angles subtract, making the dot product depend only on the relative distance between tokens, not their absolute positions. This emergent relative encoding comes from the mathematical properties of rotation matrices, without needing separate relative position parameters.",
+      "distractors": [
+        "Adds a fixed sinusoidal vector to each token embedding based on absolute position.",
+        "Learns a separate embedding vector for each possible position up to the context length.",
+        "Uses a convolutional kernel to capture local position information within a sliding window."
+      ],
+      "cloze": { "prompt": "RoPE encodes position by ____ query and key vectors, so their dot product encodes relative distance.", "answer": "rotating" },
+      "tradeoff": {
+        "scenario": "Building a model that needs to handle documents longer than its training context length.",
+        "options": ["Sinusoidal PE", "Learned Absolute PE", "RoPE with YaRN"],
+        "answer": "RoPE with YaRN",
+        "why": "RoPE extrapolates via YaRN/NTK scaling. Sinusoidal and learned absolute PE cannot extrapolate beyond training length."
+      },
+      "tags": ["positional", "attention", "extrapolation"],
+      "related": ["alibi", "sinusoidal-pe", "mha"]
+    },
+    {
+      "id": "alibi",
+      "term": "ALiBi (Attention with Linear Biases)",
+      "category": "embeddings-positional",
+      "difficulty": 2,
+      "oneLiner": "Adds a linear distance penalty directly to attention scores — no learned position params needed.",
+      "explanation": "ALiBi skips learned or sinusoidal position embeddings entirely. Instead, it subtracts a linear penalty proportional to the distance between tokens from the attention scores before softmax. Each head uses a different slope, so some heads attend locally and others globally. This enables natural length extrapolation. Used in MPT and BLOOM.",
+      "interviewQuestion": "Why does ALiBi enable better length extrapolation than learned position embeddings?",
+      "modelAnswer": "ALiBi uses a simple linear bias that naturally extends to any sequence length — the penalty for distant tokens increases linearly regardless of training length. Learned position embeddings are fixed-size vectors that have no meaningful values beyond the trained positions. ALiBi also requires zero additional parameters.",
+      "distractors": [
+        "Learns a matrix of all pairwise position interactions during training, fixed at inference.",
+        "Applies a multiplicative position scaling to attention weights after softmax normalization.",
+        "Uses a separate transformer layer to predict position-aware attention masks."
+      ],
+      "cloze": { "prompt": "ALiBi adds a ____ distance penalty directly to attention scores before softmax.", "answer": "linear" },
+      "tradeoff": null,
+      "tags": ["positional", "attention", "extrapolation"],
+      "related": ["rope", "sinusoidal-pe", "mha"]
+    },
+    {
+      "id": "scaled-dot-product-attention",
+      "term": "Scaled Dot-Product Attention",
+      "category": "attention",
+      "difficulty": 1,
+      "oneLiner": "Core attention: softmax(QKᵀ/√d_k)·V — scaling prevents softmax saturation at high dimensions.",
+      "explanation": "The fundamental attention operation computes similarity between queries and keys via dot product, scales by √d_k to keep variance stable, applies softmax for probability weights, then multiplies by values. Without the √d_k scaling, dot products grow with dimension, pushing softmax into saturated regions with near-zero gradients.",
+      "interviewQuestion": "Why is the √d_k scaling factor necessary in attention?",
+      "modelAnswer": "Without scaling, the dot products Q·K grow proportional to d_k (the key dimension). Large dot products push softmax into regions where gradients are near zero (saturation). Dividing by √d_k keeps the variance of scores approximately 1 regardless of dimension, ensuring softmax operates in its sensitive range where gradients flow properly.",
+      "distractors": [
+        "Computes attention weights using the L2 distance between query and key vectors.",
+        "Uses a learned neural network to compute attention scores between each token pair.",
+        "Applies cosine similarity followed by ReLU activation to compute attention weights."
+      ],
+      "cloze": { "prompt": "Attention scores are divided by ____ to prevent softmax saturation at high dimensions.", "answer": "√d_k" },
+      "tradeoff": null,
+      "tags": ["attention", "transformer", "softmax"],
+      "related": ["mha", "mqa", "gqa", "flash-attention"]
+    },
+    {
+      "id": "mha",
+      "term": "MHA (Multi-Head Attention)",
+      "category": "attention",
+      "difficulty": 1,
+      "oneLiner": "Runs multiple parallel attention heads in subspaces, then concatenates — each head specializes.",
+      "explanation": "MHA splits Q, K, V into h parallel heads, each operating in a d_k = d_model/h dimensional subspace. Each head learns to attend to different patterns (syntax, coreference, proximity). Outputs are concatenated and projected through W_O. This provides richer representations than single-head attention. Each head has its own K and V, making KV cache = n_heads × d_k per layer.",
+      "interviewQuestion": "Why use multiple attention heads instead of a single large attention?",
+      "modelAnswer": "Multiple heads allow the model to jointly attend to information from different representation subspaces at different positions. Different heads specialize — some attend to syntactic relationships, others to semantic similarity or positional proximity. A single head is limited to one attention pattern per position. The multi-head approach is strictly more expressive.",
+      "distractors": [
+        "Applies attention once but with a larger d_model dimension for better expressivity.",
+        "Uses a mixture-of-experts approach where each expert handles one attention pattern.",
+        "Computes attention in the frequency domain using FFT for O(n log n) complexity."
+      ],
+      "cloze": { "prompt": "In MHA, each head operates in a subspace of dimension d_k = d_model / ____.", "answer": "h (number of heads)" },
+      "tradeoff": {
+        "scenario": "Long-context chat serving on limited VRAM. Quality must hold.",
+        "options": ["MHA", "MQA", "GQA"],
+        "answer": "GQA",
+        "why": "GQA shrinks KV cache vs MHA with far less quality loss than MQA. Best middle ground for VRAM-constrained long-context serving."
+      },
+      "tags": ["attention", "transformer", "memory"],
+      "related": ["mqa", "gqa", "scaled-dot-product-attention"]
+    },
+    {
+      "id": "mqa",
+      "term": "MQA (Multi-Query Attention)",
+      "category": "attention",
+      "difficulty": 2,
+      "oneLiner": "All query heads share a single KV pair — maximum KV cache savings, some quality loss.",
+      "explanation": "MQA uses separate query projections per head but shares a single key and value projection across all heads. This reduces KV cache from n_heads × d_k to just d_k — an n_heads× memory reduction. The tradeoff is quality: with only one set of K/V, heads lose their ability to attend to different value subspaces. Used in PaLM and Falcon.",
+      "interviewQuestion": "What is the main tradeoff of MQA compared to MHA, and why does GQA exist?",
+      "modelAnswer": "MQA reduces KV cache memory by n_heads× since all heads share one K/V pair. However, this reduces model quality because heads can no longer specialize their key-value representations. GQA is a middle ground — it groups heads into g groups, each sharing K/V. With g=8 for a 32-head model, you get 4× cache reduction with minimal quality loss.",
+      "distractors": [
+        "Uses multiple value heads but a single shared query projection for reduced compute.",
+        "Applies attention only to every other token to halve the computational cost.",
+        "Replaces the attention mechanism entirely with a feed-forward approximation."
+      ],
+      "cloze": { "prompt": "MQA reduces KV cache from n_heads × d_k to just ____ per layer.", "answer": "d_k" },
+      "tradeoff": null,
+      "tags": ["attention", "memory", "throughput"],
+      "related": ["mha", "gqa", "kv-cache"]
+    },
+    {
+      "id": "gqa",
+      "term": "GQA (Grouped-Query Attention)",
+      "category": "attention",
+      "difficulty": 2,
+      "oneLiner": "Groups query heads to share KV pairs — middle ground between MHA memory and MQA quality.",
+      "explanation": "GQA divides n query heads into g groups, with each group sharing one set of K/V projections. For example, LLaMA 2 uses 32 query heads with 8 KV groups — a 4× KV cache reduction vs MHA. Research shows GQA matches MHA quality with proper training, making it the standard for modern long-context models (LLaMA 2/3, Mistral, Gemma).",
+      "interviewQuestion": "How does GQA compare to MHA and MQA in terms of the quality-efficiency tradeoff?",
+      "modelAnswer": "GQA is a spectrum between MHA (g=n, no sharing) and MQA (g=1, full sharing). With g groups for n heads, KV cache is reduced by n/g×. Empirically, g=8 with 32 heads gives 4× memory savings with negligible quality loss, compared to MQA's ~n× savings but noticeable degradation. GQA is now the default in production LLMs.",
+      "distractors": [
+        "Applies attention only within fixed-size local windows to reduce computational cost.",
+        "Uses sparse attention patterns where each head attends to a random subset of tokens.",
+        "Replaces half the attention layers with feed-forward layers to reduce total attention compute."
+      ],
+      "cloze": { "prompt": "GQA divides n query heads into ____ groups, each sharing one set of K/V projections.", "answer": "g" },
+      "tradeoff": null,
+      "tags": ["attention", "memory", "throughput"],
+      "related": ["mha", "mqa", "kv-cache"]
+    },
+    {
+      "id": "flash-attention",
+      "term": "Flash Attention",
+      "category": "attention",
+      "difficulty": 2,
+      "oneLiner": "Reorders attention computation for O(n) memory by tiling in SRAM — same O(n²) compute, no HBM.",
+      "explanation": "Flash Attention (Dao et al. 2022) avoids materializing the full N×N attention matrix in GPU HBM. Instead, it tiles the computation into SRAM-sized blocks, computing attention in a fused kernel. This achieves O(n) memory instead of O(n²), while the compute remains O(n²d). FA2 is 2-4× faster than standard attention on A100 GPUs. It's now the default in all major LLM frameworks.",
+      "interviewQuestion": "How does Flash Attention achieve O(n) memory while still computing exact attention?",
+      "modelAnswer": "Flash Attention tiles Q, K, V into blocks that fit in GPU SRAM and computes attention block-by-block using the online softmax trick (tracking running max and sum). It never materializes the full N×N attention score matrix in HBM — each block's intermediate results stay in fast SRAM. The result is mathematically identical to standard attention but uses O(n) memory instead of O(n²).",
+      "distractors": [
+        "Approximates attention using random projections to reduce complexity to O(n log n).",
+        "Computes attention only for the k-nearest neighbors of each token using locality-sensitive hashing.",
+        "Uses sparse attention patterns where each token attends to a fixed subset of positions."
+      ],
+      "cloze": { "prompt": "Flash Attention achieves O(n) memory by tiling computation in ____ instead of materializing the full attention matrix in HBM.", "answer": "SRAM" },
+      "tradeoff": null,
+      "tags": ["attention", "memory", "GPU", "optimization"],
+      "related": ["scaled-dot-product-attention", "mha", "kv-cache"]
+    },
+    {
+      "id": "kv-cache",
+      "term": "KV Cache",
+      "category": "inference-decoding",
+      "difficulty": 2,
+      "oneLiner": "Caches per-token K/V vectors so each new step skips recomputing attention over the whole sequence.",
+      "explanation": "During autoregressive generation, each new token needs attention over all previous tokens. Without caching, K and V for all previous tokens would be recomputed every step — O(n²) total compute for n tokens. The KV cache stores computed K/V pairs, so only the new token's Q/K/V needs computation. Memory cost: 2 × layers × seq_len × d_model × bytes_per_element.",
+      "interviewQuestion": "Why does KV cache size drive long-context cost, and how does GQA help?",
+      "modelAnswer": "KV cache grows linearly with sequence length, layers, and head dimension. For LLaMA-70B at 4K context in fp16, that's ~10.7GB just for the cache. This is often larger than the model weights themselves at long contexts. GQA helps by sharing K/V across query head groups — with 8 KV groups instead of 32 separate heads, cache size drops 4×.",
+      "distractors": [
+        "A CPU-side cache that stores previously decoded text strings for deduplication.",
+        "A learned embedding cache that maps frequent token sequences to precomputed outputs.",
+        "A compilation cache that stores JIT-compiled attention kernels for faster kernel launch."
+      ],
+      "cloze": { "prompt": "KV cache memory scales with context length, layers, and ____ heads.", "answer": "key/value" },
+      "tradeoff": null,
+      "tags": ["memory", "throughput", "attention"],
+      "related": ["gqa", "mqa", "flash-attention", "paged-attention"]
+    },
+    {
+      "id": "temperature",
+      "term": "Temperature",
+      "category": "inference-decoding",
+      "difficulty": 1,
+      "oneLiner": "Divides logits by T before softmax — low T sharpens (greedy), high T flattens (creative).",
+      "explanation": "Temperature T is applied before softmax by dividing all logits by T. When T<1, differences between logits are amplified, making the distribution peakier (more deterministic). When T>1, differences are compressed, making the distribution flatter (more random). T→0 becomes greedy (argmax), T→∞ becomes uniform. This is entropy scaling of the output distribution.",
+      "interviewQuestion": "Explain mathematically why temperature < 1 makes the model more deterministic.",
+      "modelAnswer": "Dividing logits by T<1 multiplies the logit differences. For example, logits [4, 2] become [8, 4] at T=0.5 — the gap doubles. After softmax, exp(8)/exp(4+8) ≈ 0.98, far more peaked than exp(4)/exp(2+4) ≈ 0.88. This amplification pushes most probability mass onto the top token, approaching argmax behavior as T→0.",
+      "distractors": [
+        "Multiplies the output probabilities by T after softmax to scale the distribution.",
+        "Adds a constant T to all logits before softmax to shift the distribution uniformly.",
+        "Applies T as a dropout rate, randomly zeroing logits to increase output diversity."
+      ],
+      "cloze": { "prompt": "Temperature is applied ____ softmax by dividing all logits by T.", "answer": "before" },
+      "tradeoff": null,
+      "tags": ["sampling", "generation", "decoding"],
+      "related": ["top-k", "top-p", "min-p", "beam-search"]
+    },
+    {
+      "id": "top-k",
+      "term": "Top-k Sampling",
+      "category": "inference-decoding",
+      "difficulty": 1,
+      "oneLiner": "Keeps only the k highest-probability tokens, zeroing the rest — a hard vocabulary cap.",
+      "explanation": "Top-k filters the vocabulary to the k tokens with highest logits, setting all others to -∞ before softmax. This prevents sampling very low-probability tokens. The limitation is that k is fixed regardless of the distribution shape — when the model is confident, k=50 includes many bad tokens; when uncertain, k=50 may be too restrictive. Top-p adapts better.",
+      "interviewQuestion": "What is the fundamental limitation of top-k sampling that top-p addresses?",
+      "modelAnswer": "Top-k uses a fixed vocabulary size regardless of the model's confidence. When the model assigns 95% probability to one token (confident), top-50 includes 49 near-zero-probability tokens that could be sampled. When the model is uncertain with a flat distribution, top-50 may exclude viable tokens. Top-p dynamically adjusts the candidate set based on cumulative probability.",
+      "distractors": [
+        "Selects the k tokens with the lowest perplexity scores from the model's hidden states.",
+        "Samples k tokens in parallel and selects the one with the highest joint probability.",
+        "Uses k separate model forward passes and ensembles their predictions."
+      ],
+      "cloze": { "prompt": "Top-k sampling sets all logits outside the top ____ tokens to negative infinity.", "answer": "k" },
+      "tradeoff": null,
+      "tags": ["sampling", "generation", "decoding"],
+      "related": ["top-p", "temperature", "min-p", "beam-search"]
+    },
+    {
+      "id": "top-p",
+      "term": "Top-p (Nucleus) Sampling",
+      "category": "inference-decoding",
+      "difficulty": 1,
+      "oneLiner": "Keeps the smallest token set whose cumulative probability mass ≥ p — adapts to model confidence.",
+      "explanation": "Top-p (Holtzman et al. 2020) sorts tokens by probability descending and keeps the minimum set whose cumulative probability reaches p. When the model is confident, only 1-2 tokens might be needed. When uncertain, many tokens are included. This dynamic adaptation to the distribution shape makes it superior to fixed top-k. Typical values: p=0.9 or 0.95.",
+      "interviewQuestion": "Why does nucleus sampling often outperform top-k, and what is the typical production configuration?",
+      "modelAnswer": "Nucleus sampling adapts its candidate vocabulary size to the model's confidence — it keeps few tokens when the model is confident and many when uncertain. Top-k has a fixed k regardless of distribution shape. Production configurations typically combine temperature with nucleus: temperature=0.7, top_p=0.9, top_k=0. OpenAI recommends not altering both temperature and top_p simultaneously.",
+      "distractors": [
+        "Samples from the bottom p% of the probability distribution to increase diversity.",
+        "Uses a learned threshold network to determine which tokens to keep per position.",
+        "Applies a fixed probability cutoff — any token with p > threshold is kept."
+      ],
+      "cloze": { "prompt": "Top-p keeps the smallest set of tokens whose ____ probability mass reaches p.", "answer": "cumulative" },
+      "tradeoff": null,
+      "tags": ["sampling", "generation", "decoding"],
+      "related": ["top-k", "temperature", "min-p"]
+    },
+    {
+      "id": "min-p",
+      "term": "Min-p Sampling",
+      "category": "inference-decoding",
+      "difficulty": 3,
+      "oneLiner": "Discards tokens below min_p × p_max — a relative floor that auto-adapts to model confidence.",
+      "explanation": "Min-p (2023) sets a relative probability floor: discard any token whose probability is less than min_p × p_top, where p_top is the highest-probability token's probability. When the model is confident (p_top=0.9), only tokens above 0.045 survive (at min_p=0.05). When uncertain (p_top=0.1), tokens above 0.005 survive — automatically widening the nucleus. Often outperforms top-p on creative tasks.",
+      "interviewQuestion": "How does min-p differ from top-p in terms of distribution adaptation?",
+      "modelAnswer": "Both adapt to model confidence, but differently. Top-p uses a cumulative probability threshold — it keeps tokens until their cumulative mass reaches p. Min-p uses a relative probability floor — it discards tokens below min_p × p_max. Min-p is more intuitive: it directly controls how much worse than the best token is acceptable. It also handles multimodal distributions better than top-p.",
+      "distractors": [
+        "Sets an absolute minimum probability threshold below which tokens are discarded.",
+        "Keeps exactly the minimum number of tokens needed for a valid probability distribution.",
+        "Applies a penalty to tokens that appear fewer than a minimum number of times in the context."
+      ],
+      "cloze": { "prompt": "Min-p discards any token whose probability is less than min_p × ____.", "answer": "p_max" },
+      "tradeoff": null,
+      "tags": ["sampling", "generation", "decoding"],
+      "related": ["top-p", "top-k", "temperature"]
+    },
+    {
+      "id": "beam-search",
+      "term": "Beam Search",
+      "category": "inference-decoding",
+      "difficulty": 2,
+      "oneLiner": "Maintains B candidate sequences scored by cumulative log-probability — deterministic, no sampling.",
+      "explanation": "Beam search keeps the top-B partial sequences at each step. Each beam is extended by all vocab tokens, creating B×V candidates, then pruned back to B. Completed beams (hitting EOS) are scored and the highest-scoring complete beam is returned. Length normalization (score/length^α, α≈0.6-0.7) prevents bias toward short sequences. Best for translation and summarization, not open-ended generation.",
+      "interviewQuestion": "When should you use beam search vs. nucleus sampling, and why?",
+      "modelAnswer": "Use beam search for tasks with a 'correct' answer — translation, summarization, structured extraction — where global sequence coherence matters more than diversity. Use nucleus sampling for open-ended generation — chat, creative writing — where diversity and naturalness are important. Beam search produces generic, repetitive text in open-ended settings ('the the the').",
+      "distractors": [
+        "A stochastic search that randomly samples B complete sequences and returns the best.",
+        "A breadth-first search that explores all possible token sequences up to a fixed depth.",
+        "A reinforcement learning algorithm that trains a policy to select optimal next tokens."
+      ],
+      "cloze": { "prompt": "Beam search maintains ____ candidate sequences and prunes at each step by cumulative log-probability.", "answer": "B" },
+      "tradeoff": null,
+      "tags": ["decoding", "generation", "search"],
+      "related": ["temperature", "top-p", "top-k"]
+    },
+    {
+      "id": "rmsnorm",
+      "term": "RMSNorm",
+      "category": "transformer-block",
+      "difficulty": 2,
+      "oneLiner": "Like LayerNorm but skips mean centering — 15% faster, equally effective for LLMs.",
+      "explanation": "RMSNorm normalizes by the root mean square of activations without subtracting the mean first. Formula: RMSNorm(x) = x / RMS(x) · γ where RMS(x) = √(1/d · Σxᵢ²). Removing the mean computation saves ~15% wall-clock time versus LayerNorm with no quality difference in practice. Used in LLaMA, Mistral, and Falcon.",
+      "interviewQuestion": "What does RMSNorm remove compared to LayerNorm, and why does this not hurt quality?",
+      "modelAnswer": "RMSNorm removes the mean centering step (subtracting the mean before normalizing). LayerNorm computes both mean and variance; RMSNorm only computes the root mean square. Empirically, the mean centering in LayerNorm provides negligible benefit for transformer language models — the learned scale parameter γ is sufficient. This saves ~15% compute.",
+      "distractors": [
+        "Normalizes over the batch dimension instead of the feature dimension like BatchNorm.",
+        "Uses a running average of normalization statistics from training instead of per-sample stats.",
+        "Applies normalization after the attention and FFN sublayers rather than before them."
+      ],
+      "cloze": { "prompt": "RMSNorm is ~15% faster than LayerNorm because it skips ____ centering.", "answer": "mean" },
+      "tradeoff": null,
+      "tags": ["normalization", "transformer", "efficiency"],
+      "related": ["pre-layernorm", "swiglu", "residual-connection"]
+    },
+    {
+      "id": "swiglu",
+      "term": "SwiGLU",
+      "category": "transformer-block",
+      "difficulty": 2,
+      "oneLiner": "Gated FFN activation: Swish(xW₁) ⊙ (xV) — 3 matrices, better perplexity than GELU.",
+      "explanation": "SwiGLU combines the Swish activation with a Gated Linear Unit. The FFN becomes: SwiGLU(x) = Swish(xW₁) ⊙ (xV) · W₂, using 3 weight matrices instead of 2. The gating mechanism (element-wise multiplication ⊙) lets the network selectively suppress activations, improving gradient flow. Used in LLaMA and PaLM. Achieves better perplexity than GELU despite similar parameter count.",
+      "interviewQuestion": "Why does SwiGLU use 3 weight matrices instead of 2, and how does this affect the parameter count?",
+      "modelAnswer": "SwiGLU adds a gating mechanism: Swish(xW₁) ⊙ (xV), which requires W₁ for the Swish branch, V for the gate branch, and W₂ for the output projection — 3 matrices total. To keep parameter count similar to 2-matrix GELU FFN, SwiGLU uses a 2/3 expansion factor instead of 4×. So if GELU uses d→4d→d, SwiGLU uses d→(8/3)d→d with gating.",
+      "distractors": [
+        "A simple ReLU activation applied element-wise to the FFN hidden layer.",
+        "A sigmoid-gated mechanism that uses 2 matrices and linear interpolation between inputs.",
+        "A dropout-based activation that randomly zeros neurons during the forward pass."
+      ],
+      "cloze": { "prompt": "SwiGLU uses ____ weight matrices in the FFN instead of the standard 2.", "answer": "3" },
+      "tradeoff": null,
+      "tags": ["activation", "FFN", "transformer"],
+      "related": ["rmsnorm", "pre-layernorm", "residual-connection"]
+    },
+    {
+      "id": "pre-layernorm",
+      "term": "Pre-LayerNorm",
+      "category": "transformer-block",
+      "difficulty": 1,
+      "oneLiner": "Applies normalization before each sublayer — enables stable training at large scale without warmup.",
+      "explanation": "In Pre-LN, normalization is applied before the attention and FFN sublayers: x = x + Sublayer(Norm(x)). The original Transformer used Post-LN: x = Norm(x + Sublayer(x)). Pre-LN allows gradients to flow directly through residual connections without being modified by normalization, enabling stable training of very deep networks without careful learning rate warmup.",
+      "interviewQuestion": "Why did modern LLMs switch from Post-LayerNorm to Pre-LayerNorm?",
+      "modelAnswer": "Pre-LayerNorm enables more stable training at large scale. With Post-LN, gradients pass through the normalization layer on the residual path, which can cause training instability and requires careful warmup. Pre-LN normalizes the input to each sublayer but leaves the residual path clean — gradients flow directly through the identity shortcut, making training more robust even with 100+ layers.",
+      "distractors": [
+        "Applies normalization only once at the very beginning of the transformer stack.",
+        "Uses batch normalization instead of layer normalization for better parallelization.",
+        "Removes normalization entirely and relies on careful weight initialization instead."
+      ],
+      "cloze": { "prompt": "Pre-LayerNorm applies normalization ____ the attention and FFN sublayers.", "answer": "before" },
+      "tradeoff": null,
+      "tags": ["normalization", "transformer", "training"],
+      "related": ["rmsnorm", "residual-connection", "swiglu"]
+    },
+    {
+      "id": "residual-connection",
+      "term": "Residual Connection",
+      "category": "transformer-block",
+      "difficulty": 1,
+      "oneLiner": "Identity shortcut x = x + sublayer(x) — creates a gradient highway for training 100+ layers.",
+      "explanation": "Every transformer sublayer uses x = x + sublayer(norm(x)). The identity shortcut ensures that even if the sublayer gradients vanish, a full-strength gradient signal flows directly from output back to input embeddings. Without residuals, a 96-layer model like GPT-3 would have vanishing gradients. The gradient is: ∂L/∂xₖ = ∂L/∂xₖ₊₁ · (I + ∂f/∂xₖ), where I guarantees signal flow.",
+      "interviewQuestion": "Mathematically, why do residual connections prevent vanishing gradients?",
+      "modelAnswer": "The gradient through a residual block is ∂L/∂xₖ = ∂L/∂xₖ₊₁ · (I + ∂fₖ/∂xₖ). The identity term I guarantees that even if ∂f/∂x is near zero (vanishing), the gradient passes through undiminished. Without residuals, the gradient is a product of all sublayer Jacobians — if any is small, the entire product vanishes. The identity shortcut creates a gradient highway.",
+      "distractors": [
+        "A learned gating mechanism that decides how much of the sublayer output to keep.",
+        "A technique that copies the input to the output but blocks gradient flow backward.",
+        "A dropout-like mechanism that randomly bypasses sublayers during training."
+      ],
+      "cloze": { "prompt": "Residual connections create a gradient ____ for training deep transformer networks.", "answer": "highway" },
+      "tradeoff": null,
+      "tags": ["transformer", "training", "gradients"],
+      "related": ["pre-layernorm", "rmsnorm", "swiglu"]
+    },
+    {
+      "id": "lora",
+      "term": "LoRA (Low-Rank Adaptation)",
+      "category": "finetuning-alignment",
+      "difficulty": 2,
+      "oneLiner": "Freezes base weights, injects trainable low-rank matrices ΔW=BA — ~256× parameter reduction.",
+      "explanation": "LoRA freezes the pretrained weight matrix W₀ and adds a low-rank decomposition ΔW = B·A where B∈ℝ^(d×r), A∈ℝ^(r×k), and r≪min(d,k). The forward pass becomes h = W₀x + BAx. With r=8 and d=4096: trains 2×4096×8 = 65,536 params vs 4096² = 16.7M original — a ~256× reduction. No additional inference latency since ΔW can be merged into W₀.",
+      "interviewQuestion": "How would you choose the rank r for a LoRA fine-tuning task?",
+      "modelAnswer": "r=8 for style/format tasks (tone adaptation, JSON output templates) where the adaptation is low-rank. r=16-32 for task adaptation (classification, summarization). r=64+ for domain knowledge injection (medical, legal terminology). Higher r increases expressivity and compute cost. The scaling factor alpha/r controls the effective learning rate of the adapters.",
+      "distractors": [
+        "Retrains all model parameters with a lower learning rate to adapt to the new task.",
+        "Adds new transformer layers on top of the frozen base model for task-specific processing.",
+        "Uses knowledge distillation from a large teacher model into a smaller student architecture."
+      ],
+      "cloze": { "prompt": "LoRA decomposes the weight update as ΔW = B·A where the rank r is ____ min(d,k).", "answer": "much less than" },
+      "tradeoff": {
+        "scenario": "Need to fine-tune a 70B model on a single 48GB GPU for a domain-specific task.",
+        "options": ["Full fine-tuning", "LoRA (fp16)", "QLoRA (4-bit + fp16 adapters)"],
+        "answer": "QLoRA (4-bit + fp16 adapters)",
+        "why": "QLoRA quantizes the base model to 4-bit NF4 while keeping LoRA adapters in fp16, making 70B fine-tuning possible on 48GB. Full fine-tuning needs 280GB+. Standard LoRA still needs ~140GB for the fp16 base."
+      },
+      "tags": ["fine-tuning", "efficiency", "adaptation"],
+      "related": ["qlora", "sft", "rlhf", "dpo"]
+    },
+    {
+      "id": "qlora",
+      "term": "QLoRA",
+      "category": "finetuning-alignment",
+      "difficulty": 2,
+      "oneLiner": "Quantizes base model to 4-bit NF4, keeps LoRA adapters in fp16 — fine-tune 70B on one GPU.",
+      "explanation": "QLoRA combines 4-bit quantization (using Normal Float 4, optimal for normally-distributed weights) of the frozen base model with fp16 LoRA adapters. NF4 is information-theoretically optimal for normally-distributed data. Double quantization further compresses the quantization constants. This enables fine-tuning 70B models on a single 48GB GPU.",
+      "interviewQuestion": "What is NF4 quantization and why is it used in QLoRA?",
+      "modelAnswer": "NF4 (Normal Float 4) is a 4-bit data type optimized for normally distributed values. Neural network weights are approximately normally distributed, so NF4 places its 16 quantization levels at the quantiles of a standard normal distribution, minimizing information loss. Combined with double quantization (quantizing the quantization constants themselves), QLoRA achieves near-fp16 quality at 4-bit memory cost.",
+      "distractors": [
+        "A method that trains only the bias terms of the model while freezing all weight matrices.",
+        "A pruning technique that removes 75% of weights and fine-tunes the remaining 25%.",
+        "A technique that converts the model to int8 during training and back to fp32 for inference."
+      ],
+      "cloze": { "prompt": "QLoRA uses ____ quantization, which is optimal for normally-distributed weights.", "answer": "NF4" },
+      "tradeoff": null,
+      "tags": ["fine-tuning", "quantization", "efficiency"],
+      "related": ["lora", "gptq", "awq", "gguf"]
+    },
+    {
+      "id": "sft",
+      "term": "SFT (Supervised Fine-Tuning)",
+      "category": "finetuning-alignment",
+      "difficulty": 1,
+      "oneLiner": "Next-token prediction on curated prompt-response pairs — teaches instruction following.",
+      "explanation": "SFT is the second stage of LLM training after pretraining. The model is trained on 10K-1M human-written demonstrations of desired behavior (prompt→response pairs) using the same causal language model loss. This teaches the model to follow instructions, format responses properly, and be helpful. SFT alone doesn't teach safety — that requires RLHF/DPO.",
+      "interviewQuestion": "What does SFT accomplish that pretraining cannot, and what does it still miss?",
+      "modelAnswer": "Pretraining teaches world knowledge and language structure from raw text. SFT teaches the model to follow instructions and produce helpful, well-formatted responses by training on curated prompt-response pairs. However, SFT alone doesn't teach the model to refuse harmful requests, avoid hallucination, or align with human preferences — that requires alignment training (RLHF/DPO).",
+      "distractors": [
+        "Trains the model from scratch on a specialized domain corpus without any pretrained weights.",
+        "Uses reinforcement learning with human feedback to optimize for helpful and harmless outputs.",
+        "Applies constitutional AI principles to have the model self-critique and revise its outputs."
+      ],
+      "cloze": { "prompt": "SFT trains the model on curated ____ pairs to teach instruction following.", "answer": "prompt-response" },
+      "tradeoff": null,
+      "tags": ["training", "alignment", "instruction-following"],
+      "related": ["rlhf", "dpo", "lora"]
+    },
+    {
+      "id": "rlhf",
+      "term": "RLHF",
+      "category": "finetuning-alignment",
+      "difficulty": 2,
+      "oneLiner": "Trains a reward model from human preferences, then optimizes the LLM via PPO against it.",
+      "explanation": "RLHF (Reinforcement Learning from Human Feedback) works in three steps: 1) Collect human preference comparisons between model outputs, 2) Train a reward model to predict human preferences, 3) Optimize the LLM using PPO to maximize the reward model's score while staying close to the SFT model (KL penalty). Requires 4 models in memory: policy, reference, reward, and value. Very effective but complex and expensive.",
+      "interviewQuestion": "Why is RLHF more complex than DPO, and when would you choose each?",
+      "modelAnswer": "RLHF requires training a separate reward model and running PPO optimization with 4 models in memory (policy, reference, reward, value). DPO simplifies this to a direct optimization from preference pairs using only 2 models (policy and reference). Choose RLHF when you have complex reward signals or need a reusable reward model. Choose DPO for simpler, faster alignment with preference data only.",
+      "distractors": [
+        "A self-supervised technique where the model learns from its own previous outputs.",
+        "A supervised method that trains on labeled correct/incorrect response pairs directly.",
+        "A distillation approach that transfers preferences from a larger model to a smaller one."
+      ],
+      "cloze": { "prompt": "RLHF requires ____ models in memory: policy, reference, reward, and value.", "answer": "4" },
+      "tradeoff": null,
+      "tags": ["alignment", "training", "reinforcement-learning"],
+      "related": ["dpo", "sft", "lora"]
+    },
+    {
+      "id": "dpo",
+      "term": "DPO (Direct Preference Optimization)",
+      "category": "finetuning-alignment",
+      "difficulty": 2,
+      "oneLiner": "Directly optimizes from preference pairs without a reward model — simpler RLHF alternative.",
+      "explanation": "DPO (Rafailov et al. 2023) shows that the RLHF objective can be reparameterized to directly optimize the policy from preference pairs, eliminating the need for a separate reward model and PPO training. It uses only 2 models (policy and reference) instead of RLHF's 4. The loss increases the log-probability of preferred responses relative to dispreferred ones, weighted by the implicit reward margin.",
+      "interviewQuestion": "How does DPO simplify the RLHF pipeline, and what are its limitations?",
+      "modelAnswer": "DPO eliminates the reward model training and PPO optimization loop by directly optimizing the policy on preference pairs. This reduces from 4 models to 2, simplifies the training pipeline significantly, and is more stable. However, DPO can't easily incorporate non-pairwise reward signals, can overfit to the preference data distribution, and doesn't produce a reusable reward model for evaluation.",
+      "distractors": [
+        "Uses a discriminator network to distinguish between human and model-generated text.",
+        "Applies contrastive learning to push apart representations of good and bad responses.",
+        "Trains the model to predict which of two responses a human would prefer, then self-selects."
+      ],
+      "cloze": { "prompt": "DPO eliminates the reward model by directly optimizing from ____ pairs.", "answer": "preference" },
+      "tradeoff": null,
+      "tags": ["alignment", "training", "optimization"],
+      "related": ["rlhf", "sft", "lora"]
+    },
+    {
+      "id": "gptq",
+      "term": "GPTQ",
+      "category": "efficiency-systems",
+      "difficulty": 2,
+      "oneLiner": "Post-training 4-bit GPU quantization using approximate second-order information — low quality loss.",
+      "explanation": "GPTQ quantizes pretrained model weights to 4-bit integers using an approximate second-order method (based on the OBS framework). It processes weights column-by-column, quantizing each and compensating remaining columns for the error. Achieves 2-3× speedup on GPU inference with minimal quality degradation. Best for GPU-based serving of large models.",
+      "interviewQuestion": "How does GPTQ differ from AWQ in approach and quality?",
+      "modelAnswer": "GPTQ uses approximate second-order (Hessian) information to minimize quantization error globally, processing weights column-by-column with error compensation. AWQ identifies and protects 'salient' weights (those that affect output quality most) from aggressive quantization. AWQ typically achieves slightly better quality at 4-bit because it focuses protection on the most important 1% of weights.",
+      "distractors": [
+        "A training-time quantization method that trains the model directly in 4-bit precision.",
+        "A pruning algorithm that removes 75% of weights based on magnitude and retrains.",
+        "A compression technique that uses Huffman coding to reduce model file size without changing precision."
+      ],
+      "cloze": { "prompt": "GPTQ uses approximate ____ information to minimize quantization error.", "answer": "second-order" },
+      "tradeoff": {
+        "scenario": "Deploying a 70B model for high-throughput GPU inference with minimal quality loss.",
+        "options": ["FP16 (no quantization)", "GPTQ (4-bit)", "AWQ (4-bit)"],
+        "answer": "AWQ (4-bit)",
+        "why": "AWQ achieves the best quality at 4-bit by protecting salient weights. GPTQ is nearly as good. FP16 has no quality loss but needs 4× the GPU memory, limiting batch size and throughput."
+      },
+      "tags": ["quantization", "efficiency", "GPU"],
+      "related": ["awq", "gguf", "qlora"]
+    },
+    {
+      "id": "awq",
+      "term": "AWQ (Activation-Aware Quantization)",
+      "category": "efficiency-systems",
+      "difficulty": 2,
+      "oneLiner": "Protects salient weights from aggressive quantization — best 4-bit quality by focusing on the important 1%.",
+      "explanation": "AWQ observes that only ~1% of weights are 'salient' (those multiplied by large activation values). It protects these weights by per-channel scaling that reduces their quantization error, while allowing aggressive 4-bit quantization of the remaining 99%. This activation-aware approach achieves the best quality among 4-bit methods. 3× faster than FP16 inference.",
+      "interviewQuestion": "What makes a weight 'salient' in AWQ, and why does protecting these weights matter so much?",
+      "modelAnswer": "A weight is salient if it's multiplied by large activation magnitudes — meaning small quantization errors in these weights get amplified and significantly affect the output. AWQ identifies these weights by analyzing calibration data activations and protects them via per-channel scaling. Protecting just 1% of weights this way preserves most of the model's quality, because the remaining 99% contribute less to output variance.",
+      "distractors": [
+        "A quantization method that reduces precision uniformly across all weights to 4 bits.",
+        "A method that identifies and removes the least important weights entirely (pruning).",
+        "A technique that quantizes activations instead of weights for faster inference."
+      ],
+      "cloze": { "prompt": "AWQ protects the ~____% of 'salient' weights from aggressive quantization.", "answer": "1" },
+      "tradeoff": null,
+      "tags": ["quantization", "efficiency", "GPU"],
+      "related": ["gptq", "gguf", "qlora"]
+    },
+    {
+      "id": "gguf",
+      "term": "GGUF",
+      "category": "efficiency-systems",
+      "difficulty": 2,
+      "oneLiner": "llama.cpp's format for 2-8 bit quantized models — optimized for CPU and Apple Silicon local inference.",
+      "explanation": "GGUF (GPT-Generated Unified Format) is the file format used by llama.cpp for quantized models. It supports variable bit-widths (Q2_K through Q8_0) with different quality/speed tradeoffs. Optimized for CPU inference with Apple Silicon Metal acceleration. The k-quant variants (Q4_K_M, Q5_K_M) use mixed precision across layers for better quality. Primary format for local/offline LLM inference.",
+      "interviewQuestion": "When would you choose GGUF over GPTQ for model deployment?",
+      "modelAnswer": "Choose GGUF for local/edge inference on CPU or Apple Silicon (Mac, iPhone). Choose GPTQ for datacenter GPU serving. GGUF is optimized for CPU memory layouts and supports Apple Metal acceleration. GPTQ is optimized for CUDA GPU kernels. GGUF also supports variable bit-widths and mixed-precision per layer (k-quants), offering more fine-grained quality/size tradeoffs.",
+      "distractors": [
+        "A GPU-optimized model format that requires CUDA for inference.",
+        "A training checkpoint format used to save and resume model training.",
+        "A model compression format that uses knowledge distillation rather than quantization."
+      ],
+      "cloze": { "prompt": "GGUF k-quant variants like Q4_K_M use ____ precision across different layers.", "answer": "mixed" },
+      "tradeoff": null,
+      "tags": ["quantization", "local-inference", "CPU"],
+      "related": ["gptq", "awq", "qlora"]
+    },
+    {
+      "id": "continuous-batching",
+      "term": "Continuous Batching",
+      "category": "efficiency-systems",
+      "difficulty": 2,
+      "oneLiner": "New requests join the batch as slots open — 70-90% GPU utilization vs 30-40% with static batching.",
+      "explanation": "Static batching waits for all requests to finish before accepting new ones. Continuous batching (iteration-level scheduling) lets new requests enter the batch as soon as any request completes, keeping the GPU busy. This achieves 70-90% utilization vs 30-40% for static batching, yielding 3-10× higher throughput. Used by vLLM, TGI, and all production serving frameworks.",
+      "interviewQuestion": "Why does static batching waste GPU resources, and how does continuous batching fix this?",
+      "modelAnswer": "In static batching, all requests in a batch must finish together. Short requests sit idle while waiting for the longest request to complete, wasting GPU cycles on padding. Continuous batching runs at iteration level — after each decode step, finished requests are evicted and new requests are inserted. This maximizes GPU utilization because there's no idle waiting.",
+      "distractors": [
+        "A technique that processes all requests sequentially one at a time for maximum simplicity.",
+        "A method that pre-allocates fixed-size batches and rejects requests when the batch is full.",
+        "A scheduling approach that groups requests by estimated length and processes each group separately."
+      ],
+      "cloze": { "prompt": "Continuous batching achieves ____% GPU utilization vs 30-40% with static batching.", "answer": "70-90" },
+      "tradeoff": null,
+      "tags": ["serving", "throughput", "GPU"],
+      "related": ["paged-attention", "speculative-decoding", "kv-cache"]
+    },
+    {
+      "id": "paged-attention",
+      "term": "PagedAttention",
+      "category": "efficiency-systems",
+      "difficulty": 3,
+      "oneLiner": "Virtual memory for KV cache — allocates blocks non-contiguously, eliminating fragmentation.",
+      "explanation": "PagedAttention (vLLM) applies OS virtual memory concepts to KV cache management. Instead of allocating contiguous memory for each request's full KV cache upfront, it allocates fixed-size blocks on demand and maps them via a page table. This eliminates memory fragmentation and over-allocation, enabling larger batch sizes and longer sequences. The core innovation behind vLLM's throughput gains.",
+      "interviewQuestion": "How does PagedAttention draw from operating system concepts, and what problem does it solve?",
+      "modelAnswer": "Like OS virtual memory, PagedAttention uses a page table to map logical KV cache positions to physical memory blocks. Blocks are allocated on demand as sequences grow, eliminating the need to pre-allocate maximum-length contiguous buffers. This solves memory fragmentation (gaps between freed and allocated regions) and over-allocation (reserving max_seq_len for short sequences), typically wasting 60-80% of KV cache memory.",
+      "distractors": [
+        "A technique that pages model weights between CPU and GPU memory during inference.",
+        "A memory management system that compresses KV cache entries using learned compression.",
+        "An attention variant that processes only one 'page' of tokens at a time for memory savings."
+      ],
+      "cloze": { "prompt": "PagedAttention eliminates KV cache ____ by allocating blocks non-contiguously.", "answer": "fragmentation" },
+      "tradeoff": null,
+      "tags": ["serving", "memory", "vLLM"],
+      "related": ["kv-cache", "continuous-batching", "speculative-decoding"]
+    },
+    {
+      "id": "speculative-decoding",
+      "term": "Speculative Decoding",
+      "category": "efficiency-systems",
+      "difficulty": 3,
+      "oneLiner": "A small draft model generates k tokens; the large target model verifies all k in one pass — 2-3× speedup.",
+      "explanation": "Speculative decoding uses a small 'draft' model (e.g., 7B) to quickly generate k candidate tokens. The large 'target' model (e.g., 70B) then verifies all k tokens in a single forward pass (which is compute-efficient due to parallelism). On agreement, all k tokens are accepted at once. On disagreement, tokens after the first mismatch are rejected and regenerated. Achieves 2-3× speedup with zero quality loss.",
+      "interviewQuestion": "Why does speculative decoding achieve speedup with zero quality loss?",
+      "modelAnswer": "The target model still makes the final decision on every token — accepted tokens are exactly what the target model would have generated. The speedup comes from parallelism: verifying k tokens in one forward pass costs nearly the same as generating one token (due to GPU parallelism), but produces k tokens on average. The draft model's speed comes from being much smaller, and its mistakes are caught and corrected.",
+      "distractors": [
+        "An approximation technique that uses a smaller model's outputs directly without verification.",
+        "A method that generates multiple independent responses and selects the best one post-hoc.",
+        "A training technique that teaches the model to predict multiple tokens at once."
+      ],
+      "cloze": { "prompt": "Speculative decoding achieves 2-3× speedup with ____ quality loss.", "answer": "zero" },
+      "tradeoff": null,
+      "tags": ["inference", "speedup", "serving"],
+      "related": ["kv-cache", "continuous-batching", "paged-attention"]
+    },
+    {
+      "id": "scaling-laws",
+      "term": "Scaling Laws",
+      "category": "scaling-reasoning",
+      "difficulty": 2,
+      "oneLiner": "Loss falls as a smooth power law in parameters (N), data (D), and compute (C) across many orders of magnitude.",
+      "explanation": "Kaplan et al. (2020) showed that LLM loss follows L(N,D) ≈ L∞ + (Nc/N)^αN + (Dc/D)^αD. This means doubling parameters or data reliably reduces loss by a predictable amount. The practical question is how to split a fixed compute budget. Chinchilla (2022) showed N and D should scale equally (~20 tokens per parameter). Modern practice over-trains smaller models for cheaper inference.",
+      "interviewQuestion": "How did the Chinchilla paper change the approach to LLM training, and what's the current thinking?",
+      "modelAnswer": "Chinchilla showed that Kaplan's recommendation to scale parameters faster than data was suboptimal. The compute-optimal ratio is ~20 tokens per parameter, not the 1-2 tokens/param used for GPT-3. A 70B model trained on 1.4T tokens beat the 280B Gopher trained on 300B tokens. Current thinking goes further: for inference cost reasons, labs deliberately over-train smaller models (LLaMA-3 8B on 15T tokens at ~1800:1 ratio).",
+      "distractors": [
+        "Laws that describe how model accuracy scales linearly with the number of GPU hours used.",
+        "Theoretical proofs that larger models always outperform smaller ones regardless of training data.",
+        "Empirical rules about how model latency increases logarithmically with parameter count."
+      ],
+      "cloze": { "prompt": "Chinchilla showed the compute-optimal ratio is ~____ tokens per parameter.", "answer": "20" },
+      "tradeoff": null,
+      "tags": ["scaling", "training", "compute"],
+      "related": ["chain-of-thought", "reasoning-models", "perplexity"]
+    },
+    {
+      "id": "chain-of-thought",
+      "term": "Chain-of-Thought (CoT)",
+      "category": "scaling-reasoning",
+      "difficulty": 1,
+      "oneLiner": "Prompting the model to emit intermediate reasoning steps — depth in tokens substitutes for depth in layers.",
+      "explanation": "Chain-of-thought prompting (Wei et al. 2022) instructs the model to show its work before answering. 'Let's think step by step' can dramatically improve performance on math, logic, and multi-step reasoning tasks. The intermediate tokens serve as scratch computation — effectively expanding the model's computational depth. This evolved from a prompting trick into a trained behavior in reasoning models.",
+      "interviewQuestion": "How does CoT relate to the concept of test-time compute scaling?",
+      "modelAnswer": "CoT is the simplest form of test-time compute scaling: spending more tokens at inference to improve accuracy. The model's intermediate steps act as additional computation, letting a smaller model achieve accuracy that would otherwise require a much larger model. More advanced forms include self-consistency (sample N chains, majority vote), tree search over reasoning steps, and dedicated reasoning models trained with RL to produce long internal chains.",
+      "distractors": [
+        "A training technique that adds intermediate supervision signals at every layer of the model.",
+        "A prompting method that asks the model to give its answer first, then explain afterward.",
+        "A model architecture change that adds recurrent connections between transformer layers."
+      ],
+      "cloze": { "prompt": "CoT prompting turns token generation into ____ computation for the model.", "answer": "scratch" },
+      "tradeoff": {
+        "scenario": "A customer needs both fast response time AND high accuracy on math reasoning tasks.",
+        "options": ["Large model with greedy decoding", "Small model with CoT", "Reasoning model (o1-style)"],
+        "answer": "Small model with CoT",
+        "why": "Reasoning models give best accuracy but are slow and expensive. Large models with greedy are fast but may miss multi-step reasoning. Small model + CoT balances cost, latency, and accuracy for most math tasks."
+      },
+      "tags": ["reasoning", "prompting", "inference"],
+      "related": ["reasoning-models", "scaling-laws"]
+    },
+    {
+      "id": "reasoning-models",
+      "term": "Reasoning Models",
+      "category": "scaling-reasoning",
+      "difficulty": 3,
+      "oneLiner": "RL-trained to produce long internal reasoning chains before answering — test-time compute scaling.",
+      "explanation": "Reasoning models (o1/o3, DeepSeek-R1, QwQ, Gemini Thinking) are trained with RL to generate extended internal reasoning before producing an answer. Using GRPO/PPO with verifiable rewards (math correctness, code passing tests), reasoning behavior emerges naturally. They trade latency and token cost for accuracy — a second scaling axis orthogonal to parameter count. They're wasteful on simple tasks a 7B model handles in one pass.",
+      "interviewQuestion": "What is RLVR and why was it a key unlock for reasoning models?",
+      "modelAnswer": "RLVR (RL from Verifiable Rewards) uses objective reward signals — did the math answer match? did the code pass unit tests? — instead of learned reward models. This sidesteps RLHF's biggest bottleneck: the cost and noise of human preference labeling. With verifiable rewards, RL can directly optimize reasoning quality at scale. DeepSeek-R1 showed that reasoning behavior emerges naturally from this RL training without explicit reasoning supervision.",
+      "distractors": [
+        "Models that use retrieval-augmented generation to look up reasoning steps from a database.",
+        "Models trained with extra transformer layers dedicated to explicit reasoning computation.",
+        "Models that use symbolic logic engines to verify and correct their natural language reasoning."
+      ],
+      "cloze": { "prompt": "Reasoning models trade ____ and token cost for accuracy — a second scaling axis.", "answer": "latency" },
+      "tradeoff": null,
+      "tags": ["reasoning", "RL", "scaling", "inference"],
+      "related": ["chain-of-thought", "scaling-laws", "rlhf"]
+    },
+    {
+      "id": "perplexity",
+      "term": "Perplexity",
+      "category": "evaluation",
+      "difficulty": 1,
+      "oneLiner": "exp(cross-entropy loss) — the model's average branching factor per token. Lower is better.",
+      "explanation": "Perplexity = exp(average negative log-likelihood per token). It represents how 'surprised' the model is by the test data — equivalent to the average number of equally-likely tokens the model considers at each position. A perplexity of 10 means the model is as uncertain as if choosing from 10 equally likely tokens. It's the standard intrinsic metric but correlates only loosely with downstream task performance.",
+      "interviewQuestion": "Why is perplexity not sufficient for evaluating LLM quality, and what complements it?",
+      "modelAnswer": "Perplexity measures how well the model predicts the next token on average, but it doesn't capture task-specific abilities like instruction following, reasoning, safety, or factual accuracy. A model with lower perplexity may still hallucinate more or refuse helpful requests. Downstream benchmarks (MMLU for knowledge, GSM8K for math, HumanEval for code) and human evaluation (Chatbot Arena Elo) complement perplexity by measuring what users actually care about.",
+      "distractors": [
+        "The ratio of correct to incorrect predictions on a labeled classification test set.",
+        "A measure of how diverse the model's outputs are across multiple generations.",
+        "The number of parameters in the model divided by the training dataset size."
+      ],
+      "cloze": { "prompt": "Perplexity equals exp(____ loss) — the model's average branching factor per token.", "answer": "cross-entropy" },
+      "tradeoff": null,
+      "tags": ["evaluation", "metrics", "training"],
+      "related": ["scaling-laws"]
+    }
+  ]
+}
