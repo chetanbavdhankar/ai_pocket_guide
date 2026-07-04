@@ -1475,6 +1475,7 @@
       <div class="nav-item active" onclick="showSection('dashboard')"><span class="nav-icon">⚡</span>Dashboard</div>
       <div class="nav-item" onclick="showSection('llm')"><span class="nav-icon">🧠</span>LLM & AI Theory</div>
       <div class="nav-item" onclick="showSection('rag')"><span class="nav-icon">🔍</span>RAG & Agents</div>
+      <div class="nav-item" onclick="showSection('systems')"><span class="nav-icon">⚙️</span>Systems & Infra</div>
       <div class="nav-item" onclick="showSection('python')"><span class="nav-icon">🐍</span>Python Mastery</div>
       <div class="nav-item" onclick="showSection('ds')"><span class="nav-icon">📊</span>Data Science</div>
       <div class="nav-item" onclick="showSection('trivia')"><span class="nav-icon">🎯</span>Q&A Trivia</div>
@@ -1502,7 +1503,7 @@
 
       <div class="card-grid">
         <div class="stat-card">
-          <div class="stat-num">9</div>
+          <div class="stat-num">10</div>
           <div class="stat-label">Sections</div>
         </div>
         <div class="stat-card">
@@ -1514,7 +1515,7 @@
           <div class="stat-label">Coding Problems</div>
         </div>
         <div class="stat-card">
-          <div class="stat-num" style="color:var(--accent3)">40</div>
+          <div class="stat-num" style="color:var(--accent3)">77</div>
           <div class="stat-label">Topics Covered</div>
         </div>
       </div>
@@ -1555,6 +1556,13 @@
                 class="skill-bar-pct">80%</span></div>
             <div class="skill-bar-track">
               <div class="skill-bar-fill" style="width:80%"></div>
+            </div>
+          </div>
+          <div class="skill-bar">
+            <div class="skill-bar-header"><span class="skill-bar-name">LLM Systems & Infra</span><span
+                class="skill-bar-pct">85%</span></div>
+            <div class="skill-bar-track">
+              <div class="skill-bar-fill" style="width:85%"></div>
             </div>
           </div>
           <div class="skill-bar">
@@ -3672,6 +3680,447 @@
           6. <strong>Rate limiting</strong>: Limit tool call frequency per session</div>
       </div>
     </section>
+    
+    <!-- ===== SECTION 5: LLM SYSTEMS & INFRA ===== -->
+    <section id="s-systems" class="section">
+      <div class="section-title">LLM Systems & Infra</div>
+      <div class="section-subtitle">Deep dive into GPU hardware, quantization, distributed training, serving engines, and operations.</div>
+      <div class="tabs" id="tabs-systems" style="flex-wrap:wrap">
+        <button class="tab-btn active" onclick="switchTab('systems','compute')">Compute & Memory</button>
+        <button class="tab-btn" onclick="switchTab('systems','dist')">Distributed & Serving</button>
+        <button class="tab-btn" onclick="switchTab('systems','pipe')">Engineering Pipelines</button>
+        <button class="tab-btn" onclick="switchTab('systems','ops')">Operations & Security</button>
+        <button class="tab-btn" onclick="switchTab('systems','found')">System Foundations</button>
+      </div>
+
+      <!-- TAB: Compute & Memory -->
+      <div id="systems-compute" class="tab-content active">
+        <h3 class="subsection">1. GPU Architecture & Memory Hierarchy</h3>
+        <p>A GPU is a throughput machine, not a latency machine. A CPU spends transistors on branch predictors and large caches to make <em>one</em> thread fast. A GPU spends them on thousands of arithmetic units and hides latency by having so many threads in flight that whenever one stalls waiting on memory, another is ready to run. This is the whole design philosophy: latency hiding through massive parallelism rather than latency reduction.</p>
+        
+        <p>The hardware hierarchy, from the ground up: a GPU contains dozens of <strong>Streaming Multiprocessors (SMs)</strong>. Each SM contains CUDA cores (FP32/INT ALUs), Tensor Cores (matrix-multiply-accumulate units that do the heavy lifting for deep learning), warp schedulers, a register file, and a slab of on-chip SRAM that is split between L1 cache and <strong>shared memory</strong>. Threads execute in lockstep groups of 32 called <strong>warps</strong> — if threads in a warp take different branches (warp divergence), the paths run serially and you lose throughput.</p>
+        
+        <div class="insight">
+          <strong>Memory Optimization Goal:</strong> The entire art of GPU kernel optimization is keeping data in the fast tiers (registers, shared memory) and reusing it before it falls back to global HBM.
+        </div>
+
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Memory Tier</th>
+              <th>Typical Size</th>
+              <th>Latency (cycles)</th>
+              <th>Bandwidth</th>
+              <th>Accessibility</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Registers</td>
+              <td>~KB per block</td>
+              <td>~1 cycle</td>
+              <td>~100 TB/s</td>
+              <td>Per-thread</td>
+            </tr>
+            <tr>
+              <td>Shared Memory / L1</td>
+              <td>~100 KB per SM</td>
+              <td>~20 cycles</td>
+              <td>~20-30 TB/s</td>
+              <td>Shared inside Thread Block</td>
+            </tr>
+            <tr>
+              <td>L2 Cache</td>
+              <td>~a few MB</td>
+              <td>~100 cycles</td>
+              <td>~5-10 TB/s</td>
+              <td>Shared across all SMs</td>
+            </tr>
+            <tr>
+              <td>HBM / VRAM</td>
+              <td>~tens of GB</td>
+              <td>~hundreds of cycles</td>
+              <td>~1-8 TB/s</td>
+              <td>Global GPU memory</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>Two numbers define any GPU: <strong>compute</strong> (measured in TFLOPS, dominated by Tensor Cores) and <strong>memory bandwidth</strong> (TB/s of HBM access). The ratio between them defines the <strong>roofline</strong>. A kernel is <em>compute-bound</em> if it does many FLOPs per byte fetched, and <em>memory-bound</em> if it does few. LLM inference during generation is overwhelmingly memory-bound: you stream billions of weight parameters from HBM to produce one token, doing very little arithmetic per weight. This is the central fact that motivates quantization, batching, and KV caching — they all attack the memory-bandwidth bottleneck.</p>
+
+        <h3 class="subsection">2. Quantization (INT8 / FP8 / 4-bit)</h3>
+        <p>Quantization stores and computes numbers in fewer bits. A weight in FP16 takes 2 bytes; in INT8, 1 byte; in 4-bit, half a byte. Since generation is memory-bound (Section 1), halving the bytes-per-weight roughly halves the data you stream from HBM per token, which roughly doubles throughput — and it shrinks the VRAM footprint proportionally, which is often the difference between fitting on one GPU or not.</p>
+        
+        <p>The core idea is mapping a range of floating-point values onto a small integer grid via a <strong>scale</strong> (and sometimes a <strong>zero-point</strong>): <span class="inline-code">real &asymp; scale &times; quantized</span>. The scale can be chosen per-tensor (coarse, cheap), per-channel, or per-group/per-block (fine-grained, preserves accuracy better). The finer the granularity, the more scales you store but the less error you inject.</p>
+        
+        <div class="insight red">
+          <strong>Outliers Management:</strong> The recurring failure mode in quantization is outliers — a few large-magnitude activations that, if naively quantized, blow up the scale and destroy precision for everything else. Modern schemes like SmoothQuant and AWQ protect these salient weights.
+        </div>
+
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Format</th>
+              <th>Bytes/Weight</th>
+              <th>Dequantization overhead</th>
+              <th>Best Use Cases</th>
+              <th>Hardware Support</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>INT8</td>
+              <td>1 byte</td>
+              <td>None (if running W8A8)</td>
+              <td>Mature weight-and-activation quantization</td>
+              <td>All modern GPUs</td>
+            </tr>
+            <tr>
+              <td>FP8</td>
+              <td>1 byte</td>
+              <td>None</td>
+              <td>Hopper/Ada default for training & inference</td>
+              <td>Hopper (H100) / Blackwell (B200)</td>
+            </tr>
+            <tr>
+              <td>4-bit (NF4/INT4)</td>
+              <td>0.5 bytes</td>
+              <td>High (W4A16 dequantized on-the-fly)</td>
+              <td>Weight-only quantization (QLoRA, AWQ, GPTQ)</td>
+              <td>Universal, needs custom Triton/CUDA kernels</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="subsection">3. Batching & Continuous Batching</h3>
+        <p>Batching is the single biggest throughput lever in inference, and it works precisely <em>because</em> generation is memory-bound. When you process one request, you stream all the model weights from HBM to produce its tokens. If you process 32 requests together, you stream those same weights <strong>once</strong> and amortize them across 32 tokens' worth of compute. You were bandwidth-limited, so the extra arithmetic is nearly free — throughput scales close to linearly with batch size until you saturate compute or run out of VRAM for the KV cache.</p>
+        
+        <p>Static batching is the naive approach and it's badly suited to LLMs: you group N requests, run them together, and wait for <em>all</em> of them to finish before starting the next batch. But LLM outputs have wildly different lengths — one request generates 5 tokens, another 500. With static batching the whole batch is held hostage by the longest sequence, GPUs sit idle on finished slots, and latency suffers.</p>
+        
+        <p><strong>Continuous batching</strong> (a.k.a. in-flight or dynamic batching, popularized by Orca and vLLM) fixes this by operating at the granularity of a single decoding <em>iteration</em> rather than a whole request. The scheduler maintains a running batch and, at every forward-pass step, evicts sequences that just emitted their end-of-sequence token and admits waiting requests into the freed slots. The batch composition changes token by token. GPU utilization stays high because idle slots are refilled immediately instead of waiting for a batch boundary.</p>
+
+        <div class="insight yellow">
+          <strong>Throughput vs Latency Tradeoff:</strong> Larger effective batches raise tokens/second across all users but can raise per-request latency (especially TTFT when new prompts wait, and inter-token latency when the batch is large). Schedulers expose knobs to balance this.
+        </div>
+
+        <h3 class="subsection">4. KV Caching, Speculative Decoding & Prefix Caching</h3>
+        <p><strong>KV caching</strong> is the optimization that makes autoregressive generation tractable. In attention, each token attends to all previous tokens via their Key and Value vectors. Without caching, generating token N would recompute the K and V for all N&minus;1 prior tokens every step — quadratic, catastrophic. Instead you compute each token's K and V once and store them; every future step reuses the cache and only computes attention for the single new query. This turns generation from recompute-everything into append-one-and-attend.</p>
+        
+        <p>The cost is memory. The KV cache grows linearly with sequence length &times; batch size &times; layers &times; heads &times; head-dim, and it lives in VRAM alongside the weights. For long contexts and large batches the KV cache can dwarf the model itself. This is why KV-cache <em>management</em> is a first-class serving concern. <strong>PagedAttention</strong> (vLLM's flagship idea) treats KV memory like an OS treats RAM: it splits the cache into fixed-size blocks (pages) allocated on demand from a shared pool, so you don't have to pre-reserve contiguous max-length buffers per sequence. This near-eliminates fragmentation and internal waste, letting you pack far more concurrent sequences into the same VRAM.</p>
+        
+        <p><strong>Prefix caching</strong> exploits shared prompt prefixes. If many requests share a common prefix — a long system prompt, a few-shot template, a document being asked multiple questions — you compute that prefix's KV once and reuse it across all of them, skipping redundant prefill. With paged KV memory this is elegant: shared prefix blocks are simply referenced (copy-on-write) by multiple sequences.</p>
+        
+        <p><strong>Speculative decoding</strong> attacks the fundamental serialization of generation: you can only produce one token per forward pass, and each pass is memory-bound and slow. The trick is to use a small, cheap <strong>draft model</strong> (or a lightweight head, or n-gram lookup) to <em>guess</em> several future tokens quickly, then run the big <strong>target model once</strong> to verify all the guesses in parallel. Because verification is a single batched forward pass, and because the big model is memory-bound (so processing K candidate tokens costs almost the same as processing one), you get multiple accepted tokens per expensive step whenever the draft guesses well.</p>
+
+        <div class="insight green">
+          <strong>Token Throughput Metrics:</strong>
+          <ul>
+            <li><strong>TTFT:</strong> Time To First Token (dominated by prefill and queuing)</li>
+            <li><strong>ITL/TPOT:</strong> Inter-Token Latency / Time Per Output Token (dominated by decode)</li>
+            <li><strong>Aggregate throughput:</strong> Total tokens generated per second across all users</li>
+          </ul>
+        </div>
+
+        <h4 class="mini-title">Speculative Decoding Logic (Conceptual)</h4>
+        <div class="code-block"><span class="kw">def</span> <span class="fn">speculative_decode</span>(prompt, draft_model, target_model, k=<span class="num">5</span>):
+    <span class="cm"># 1. Draft model generates k speculative tokens</span>
+    draft_tokens = draft_model.generate(prompt, max_new_tokens=k)
+    
+    <span class="cm"># 2. Target model evaluates all k tokens in parallel (one forward pass)</span>
+    target_logits = target_model(prompt + draft_tokens)
+    
+    <span class="cm"># 3. Apply rejection sampling to accept / reject draft tokens</span>
+    accepted_tokens = []
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(k):
+        p_draft = draft_logits[i]
+        p_target = target_logits[i]
+        <span class="kw">if</span> <span class="fn">random</span>() <= p_target / p_draft:
+            accepted_tokens.append(draft_tokens[i])
+        <span class="kw">else</span>:
+            <span class="cm"># Reject remaining draft tokens, resample from target, and stop</span>
+            accepted_tokens.append(sample_from(p_target))
+            <span class="kw">break</span>
+    <span class="kw">return</span> accepted_tokens</div>
+      </div>
+
+      <!-- TAB: Distributed & Serving -->
+      <div id="systems-dist" class="tab-content">
+        <h3 class="subsection">5. Distributed Training (DDP, FSDP, DeepSpeed, ZeRO)</h3>
+        <p>Training a large model exceeds one GPU along two axes: it's too slow (need more compute) and too big (weights + gradients + optimizer state don't fit). Distributed training addresses both, and the schemes differ by <em>what</em> they split and <em>what</em> they replicate.</p>
+        
+        <p><strong>DDP (Distributed Data Parallel)</strong> is the baseline. Every GPU holds a <em>full replica</em> of the model. You split the data batch across GPUs; each computes gradients on its shard; then an <strong>all-reduce</strong> averages gradients across all GPUs so every replica applies the identical update and stays in sync. DDP is simple and scales throughput well, but it does nothing for memory — every GPU still needs to fit the entire model, gradients, and optimizer state. That last part is the killer: with the Adam optimizer, the optimizer state (momentum + variance, in FP32) is ~2&times; the model size on top of the weights and gradients.</p>
+        
+        <p><strong>ZeRO (Zero Redundancy Optimizer)</strong>, the core of Microsoft's <strong>DeepSpeed</strong>, observes that DDP wastefully replicates all that state N times. ZeRO shards it instead, in three progressive stages:</p>
+
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>ZeRO Stage</th>
+              <th>Optimizer States</th>
+              <th>Gradients</th>
+              <th>Parameters</th>
+              <th>Key Comm. Collective</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Stage 1</td>
+              <td>Sharded across GPUs</td>
+              <td>Replicated</td>
+              <td>Replicated</td>
+              <td>Reduce-scatter gradients</td>
+            </tr>
+            <tr>
+              <td>Stage 2</td>
+              <td>Sharded across GPUs</td>
+              <td>Sharded across GPUs</td>
+              <td>Replicated</td>
+              <td>Reduce-scatter gradients</td>
+            </tr>
+            <tr>
+              <td>Stage 3</td>
+              <td>Sharded across GPUs</td>
+              <td>Sharded across GPUs</td>
+              <td>Sharded across GPUs</td>
+              <td>All-gather parameters (on-the-fly)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p><strong>FSDP (Fully Sharded Data Parallel)</strong> is PyTorch's native implementation of the same idea as ZeRO-3: parameters, gradients, and optimizer state are all sharded across the data-parallel group, gathered per-layer during compute, and freed after. Functionally FSDP &asymp; ZeRO-3 with tighter framework integration; it's the default choice for large-scale training in the PyTorch ecosystem today.</p>
+
+        <h3 class="subsection">6. Model Serving (vLLM, TensorRT-LLM, Triton, Ray Serve, SGLang)</h3>
+        <p>Serving tools live at different layers and are often composed rather than chosen among. The mental map is: <strong>Inference Engine</strong> does the token generation; <strong>Serving Framework/Orchestrator</strong> wraps it with deployment, scaling, and routing; and Kubernetes is the substrate underneath.</p>
+
+        <p><strong>Inference Engines</strong> (actually running the forward pass and generating tokens):</p>
+        <ul>
+          <li><strong>vLLM:</strong> The popular open-source LLM engine; its defining features are PagedAttention and strong continuous batching. Great throughput, easy to run, OpenAI-compatible API.</li>
+          <li><strong>TensorRT-LLM:</strong> NVIDIA's engine, built on TensorRT. It compiles the model into fused, hardware-specific kernels for the target GPU, squeezing out the last drops of FP8 latency/throughput. Rigid and requires ahead-of-time compilation.</li>
+          <li><strong>SGLang:</strong> Optimized for structured and multi-call programs. Its standout is <strong>RadixAttention</strong>, which automatically caches and reuses KV state across requests via a radix tree of prefixes (prefix caching taken to its logical extreme).</li>
+        </ul>
+
+        <p><strong>Serving Frameworks / Orchestrators</strong> (deploying and routing):</p>
+        <ul>
+          <li><strong>Triton Inference Server:</strong> NVIDIA's general-purpose server. Model-agnostic, supports ensembles/pipelines, dynamic batching, multi-model hosting, and can use TensorRT-LLM or vLLM as a backend.</li>
+          <li><strong>KServe:</strong> Kubernetes-native model serving. Standardizes deployment, scale-to-zero, canary rollouts on top of k8s.</li>
+          <li><strong>Ray Serve:</strong> Python-native, framework-agnostic serving library on top of Ray. Best for composing multi-step pipelines (retrieval &rarr; rerank &rarr; LLM &rarr; post-process) with heterogeneous models.</li>
+        </ul>
+
+        <h3 class="subsection">7. Kubernetes, Docker & GPU Orchestration</h3>
+        <p>Docker packages a model service and its exact dependency stack (CUDA runtime, drivers, engines) into an immutable image. For GPU workloads the image must line up with the host's driver version, and the <strong>NVIDIA Container Toolkit</strong> is what injects the GPU devices and driver libraries into the container at runtime.</p>
+        
+        <p>GPUs are (mostly) not fractionally shareable by default — one pod claims a whole GPU. To share, you use <strong>MPS</strong> (Multi-Process Service, spatial sharing) or <strong>MIG</strong> (Multi-Instance GPU, hardware-partitioning an A100/H100 into isolated slices). This matters hugely for cost: small models waste an entire expensive GPU unless you partition or co-locate.</p>
+        
+        <div class="insight yellow">
+          <strong>Cold Starts:</strong> Cold starts are painful for LLMs because loading tens of GB of weights into VRAM takes real time; strategies include keeping warm pools, model caching on fast local NVMe, and provisioning headroom.
+        </div>
+
+        <h3 class="subsection">8. NCCL, InfiniBand & High-Speed Networking</h3>
+        <p>Distributed training and multi-node inference are gated by how fast GPUs can exchange data. The forward/backward passes are useless if gradient sync or activation transfer stalls everything.</p>
+        
+        <p><strong>Collective communication</strong> is the vocabulary. The operations: <em>all-reduce</em> (average gradients across all GPUs), <em>all-gather</em> (reconstruct parameters per-layer in FSDP), <em>reduce-scatter</em> (reduce then split), and <em>all-to-all</em> (used in MoE routing). The efficient implementation is <strong>ring all-reduce</strong>, which arranges GPUs in a ring so bandwidth cost is independent of GPU count.</p>
+        
+        <p><strong>NCCL (NVIDIA Collective Communications Library)</strong> implements these collectives optimally for NVIDIA hardware, using <strong>NVLink/NVSwitch</strong> for intra-node GPU-to-GPU and the network fabric (InfiniBand/RoCE) for inter-node. **InfiniBand** provides low-latency, high-bandwidth fabric with **RDMA (Remote Direct Memory Access)** and **GPUDirect RDMA**, moving data NIC-to-GPU-memory directly, bypassing the CPU entirely.</p>
+
+        <h3 class="subsection">9. Multi-GPU & Multi-Node Inference</h3>
+        <p>When a model exceeds one GPU, you split it using one of three parallelism strategies:</p>
+        <ul>
+          <li><strong>Tensor Parallelism (TP):</strong> Splits individual weight matrices across GPUs (e.g. column-split matmuls). Communicates on every layer (via all-reduce/all-gather), demanding very fast interconnect (NVLink). TP reduces per-GPU weight memory and per-token latency.</li>
+          <li><strong>Pipeline Parallelism (PP):</strong> Splits the model by <em>layers</em> into stages, each stage on a different GPU/node. Communicates only at stage boundaries (cheap), tolerating slower inter-node links. PP introduces "pipeline bubbles" (idle time at fill/drain) and doesn't reduce single-request latency.</li>
+          <li><strong>Expert Parallelism (EP):</strong> Distributes experts of a Mixture-of-Experts (MoE) model across GPUs and all-to-all routes each token to its chosen experts.</li>
+        </ul>
+        <div class="insight">
+          <strong>Disaggregated Prefill-Decode Splitting:</strong> Prefill is compute-bound, whereas decode is memory-bound. Some advanced serving systems run them on separate GPU pools and stream the KV cache between them, matching each phase to hardware that suits it.
+        </div>
+      </div>
+
+      <!-- TAB: Engineering Pipelines -->
+      <div id="systems-pipe" class="tab-content">
+        <h3 class="subsection">10. LoRA, QLoRA & PEFT Pipelines</h3>
+        <p>Full fine-tuning updates every weight and needs training-scale VRAM. **PEFT (Parameter-Efficient Fine-Tuning)** adapts a model by training a tiny number of new parameters while freezing the original weights, cutting memory and storage by orders of magnitude.</p>
+        
+        <p><strong>LoRA (Low-Rank Adaptation)</strong> is the dominant PEFT method. The update applied to a weight matrix is empirically low-rank, so instead of learning a full &Delta;W (d&times;d), you learn two small matrices A (d&times;r) and B (r&times;d) with rank <span class="inline-code">r &ll; d</span>, and use <span class="inline-code">W + BA</span>. At inference you can either keep the adapter separate or <strong>merge</strong> BA back into W for zero added latency. Adapters are tiny (megabytes), letting you serve <strong>multiple LoRAs simultaneously</strong> on one base model.</p>
+        
+        <p><strong>QLoRA</strong> stacks quantization on top: freeze and store the <em>base</em> model in <strong>4-bit</strong> (NF4), then train LoRA adapters in 16-bit on top of it. Trainable state is tiny, and the base model is quartered in size, enabling single-GPU fine-tuning of large models.</p>
+
+        <h4 class="mini-title">Fine-Tuning LoRA Setup in PEFT</h4>
+        <div class="code-block"><span class="kw">from</span> peft <span class="kw">import</span> LoraConfig, get_peft_model
+
+config = LoraConfig(
+    r=<span class="num">8</span>,
+    lora_alpha=<span class="num">16</span>,
+    target_modules=[<span class="st">"q_proj"</span>, <span class="st">"v_proj"</span>],
+    lora_dropout=<span class="num">0.05</span>,
+    bias=<span class="st">"none"</span>,
+    task_type=<span class="st">"CAUSAL_LM"</span>
+)
+model = get_peft_model(base_model, config)
+model.print_trainable_parameters()</div>
+
+        <h3 class="subsection">11. Vector Databases, Embeddings & RAG Pipelines</h3>
+        <p><strong>Embeddings</strong> turn text into dense vectors positioned so that semantic similarity becomes geometric proximity, measured by cosine similarity or dot product.</p>
+        
+        <p><strong>Vector Databases</strong> (FAISS, Milvus, Qdrant, Weaviate, pgvector, Pinecone) store these vectors and answer nearest-neighbor queries fast. Exact nearest-neighbor is too slow, so they use **ANN (Approximate Nearest Neighbor)** indexes like **HNSW** (navigable small-world graphs) or **IVF-PQ** (Inverted File index with Product Quantization).</p>
+        
+        <p><strong>RAG (Retrieval-Augmented Generation)</strong> grounds an LLM in external knowledge. The pipeline chunking strategy is critical: too big dilutes relevance, too small loses context. Ingest &rarr; embed &rarr; index &rarr; retrieve (hybrid search dense + sparse/BM25) &rarr; rerank (via cross-encoders) &rarr; assemble prompt &rarr; generate.</p>
+
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Index Type</th>
+              <th>Build Time</th>
+              <th>Query Latency</th>
+              <th>Memory Footprint</th>
+              <th>Recall</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>HNSW</td>
+              <td>O(N log N) (Slow)</td>
+              <td>O(log N) (Fast)</td>
+              <td>High (stores graph edges)</td>
+              <td>Very High (99%+)</td>
+            </tr>
+            <tr>
+              <td>IVF-PQ</td>
+              <td>Fast (clustering)</td>
+              <td>Scans centroids (Medium)</td>
+              <td>Very Low (highly compressed)</td>
+              <td>Medium-High (depends on nprobe)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="subsection">12. Prompt Caching, Semantic Caching & Cost Optimization</h3>
+        <p>LLM cost is proportional to tokens processed. Three caching layers minimize this cost:</p>
+        <ul>
+          <li><strong>Prompt Caching:</strong> Caches the computed KV state of a prompt prefix. If the beginning of your prompt is stable (system prompt, tools), the provider skips reprocessing it. Exact-match, deterministic, lossless.</li>
+          <li><strong>Semantic Caching:</strong> Caches whole responses keyed by meaning. Embed the incoming query, search a vector store of past query-response pairs, and if the similarity is above a threshold, return the cached answer. Risk: returns wrong answers to subtly different questions.</li>
+        </ul>
+        <div class="insight">
+          <strong>Cost Optimization Portfolio:</strong> Route easy queries to small/cheap models, quantize base models, batch aggressively, compress retrieved context in RAG, and use spot/preemptible instances.
+        </div>
+
+        <h3 class="subsection">17. Data Pipelines, Kafka & Streaming Inference</h3>
+        <p><strong>Data pipelines</strong> move and transform data from sources to consumers, splitting into **batch** (process bounded chunks on a schedule) vs **streaming** (process events continuously as they arrive).</p>
+        
+        <p><strong>Kafka</strong> is the distributed event-streaming backbone. Producers publish events to append-only logs called topics; consumers read from them independently. Kafka provides durability, decoupling, partitioning, and ordering guarantees.</p>
+        
+        <p><strong>Streaming inference</strong> has two meanings in this context: (1) **event-driven inference** where a stream processor calls a model per event, and (2) **token streaming** where generated tokens are incrementally sent over SSE (Server-Sent Events) or WebSockets to show text appearing live, slashing perceived latency (TTFT).</p>
+      </div>
+
+      <!-- TAB: Operations & Security -->
+      <div id="systems-ops" class="tab-content">
+        <h3 class="subsection">13. Observability (Prometheus, Grafana, OpenTelemetry, Langfuse, Phoenix)</h3>
+        <p>LLM systems fail in ways traditional monitoring misses (a 200 OK response can still contain a hallucinated or harmful answer). Observability spans two worlds:</p>
+        
+        <p><strong>Classic Infra Telemetry:</strong> **Prometheus** scrapes metrics (GPU, VRAM, request rate, latency percentiles, tokens/sec); **Grafana** visualizes them; **OpenTelemetry (OTel)** standardizes traces, metrics, and logs. Traces show the path of a request as it fans out across retrieval, rerank, and LLM calls.</p>
+        
+        <p><strong>LLM-Specific Tracing:</strong> Tools like **Langfuse** and **Arize Phoenix** trace the semantics: the prompt, retrieved chunks, model's response, token counts, cost, and multi-step agent graphs. They allow attaching evaluations to traces to monitor output quality and regressions.</p>
+
+        <h3 class="subsection">14. LLM Evaluation, Benchmarking & A/B Testing</h3>
+        <p>Evaluating LLMs is hard because correctness is subjective and outputs are open-ended. You need a layered strategy:</p>
+        <ul>
+          <li><strong>Offline Benchmarks:</strong> Capabilty measures on fixed datasets (GSM8K, MMLU, etc.) and your own task set. Methods include reference-based metrics (exact match, BLEU/ROUGE), classifier checks, and **LLM-as-judge** (scoring outputs with a strong model like GPT-4 against a detailed rubric).</li>
+          <li><strong>RAG Evals:</strong> Decompose into *retrieval* quality (context precision and recall) vs *generation* quality (faithfulness/groundedness and answer relevance).</li>
+          <li><strong>Online Evals (A/B testing):</strong> Splitting live traffic between variants and comparing product metrics (completion rate, thumbs up/down, latency, cost). A/B testing is the ultimate ground truth.</li>
+        </ul>
+
+        <h3 class="subsection">15. Model Routing & Fallback Strategies</h3>
+        <p>No single model is perfect. **Model routing** sends each request to the most appropriate model. A **cascade/tiered router** tries a cheap model first, escalating to a premium model if a lightweight verifier judges the answer inadequate. A **classifier router** categorizes query complexity up front (simple FAQ &rarr; mini model, complex math &rarr; frontier model).</p>
+        
+        <p><strong>Fallback strategies</strong> handle rate-limits, timeouts, and outages. Maintain a **fallback chain**: on failure, retry with exponential backoff, fail over to an alternate model/provider, and ultimately degrade gracefully. Gateways like LiteLLM centralize timeouts, load balancing, and circuit breakers.</p>
+
+        <h4 class="mini-title">Simple Cascade Router Pattern</h4>
+        <div class="code-block"><span class="kw">def</span> <span class="fn">route_query</span>(query, classifier_model):
+    <span class="cm"># Predict complexity: 'simple' vs 'complex'</span>
+    complexity = classifier_model.predict(query)
+    
+    <span class="kw">if</span> complexity == <span class="st">"simple"</span>:
+        <span class="kw">try</span>:
+            <span class="kw">return</span> call_cheap_model(query)
+        <span class="kw">except</span> <span class="cls">Exception</span>:
+            <span class="cm"># Fallback to premium model on failure</span>
+            <span class="kw">return</span> call_premium_model(query)
+    <span class="kw">else</span>:
+        <span class="kw">return</span> call_premium_model(query)</div>
+
+        <h3 class="subsection">18. Security, Guardrails & Prompt Injection Mitigation</h3>
+        <p>LLMs run on natural language, meaning instructions and data share the same channel. This enables **prompt injection** where untrusted user input overrides the system prompt. **Direct injection** is user-generated; **indirect injection** occurs when the model reads malicious instructions hidden in retrieved search documents or RAG databases.</p>
+        
+        <div class="insight red">
+          <strong>Security Principle:</strong> Assume the model can be manipulated. Implement permissions, sandboxing, and validation in the system around the model rather than relying on the model to police itself.
+        </div>
+
+        <p><strong>Guardrails:</strong> Input/output control layers (e.g. Llama Guard, NeMo Guardrails). Input filters block jailbreaks/PII before they hit the model. Output filters check for toxicity, hallucination, and enforce schema formats before displaying the output to users.</p>
+
+        <h3 class="subsection">19. CI/CD for ML (MLOps), MLflow & Model Registries</h3>
+        <p>ML behavior depends on **code, data, and model** — not just code. Deployments can regress with no code changes due to data shift or a new model artifact, necessitating versioning and gating across all three axes.</p>
+        
+        <p><strong>MLflow</strong> canonicalizes experiment tracking and model registries. *Tracking* logs training runs (parameters, metrics, code). The *Model Registry* is a versioned catalog of trained checkpoints (and adapters/templates), mapping lineage back to the training run and managing deployment stages (Staging &rarr; Production).</p>
+        
+        <p><strong>CI/CD Pipelines:</strong> **CI** runs unit tests, schema validation, and **model-quality gates** (automatically running the eval suite and failing if quality drops). **CD** promotes models via progressive shadow/canary rollouts. **Continuous Training (CT)** retrains models when data or concept **drift** is detected via production monitoring.</p>
+      </div>
+
+      <!-- TAB: System Foundations -->
+      <div id="systems-found" class="tab-content">
+        <h3 class="subsection">16. MCP, AI Agents & Workflow Orchestration</h3>
+        <p>An **AI agent** is an LLM given the ability to <em>act</em> in a loop: Thought &rarr; Action &rarr; Observation. The LLM acts as the planner/controller, and tools (APIs, code runtimes) are its hands. Reliability is the main challenge, as agents compound errors over long trajectories.</p>
+        
+        <p><strong>Model Context Protocol (MCP)</strong> (introduced by Anthropic) standardizes how models connect to tools and data. It defines a client-server protocol where MCP servers expose tools, resources, and prompts, and MCP clients (the agent host) discover and invoke them. This replaces bespoke glue code with a uniform interface ("USB-C for tools").</p>
+        
+        <p><strong>Workflow orchestration:</strong> Structured multi-step LLM execution, dividing into **workflows** (predefined deterministic graph of steps, LLM at nodes, reliable and debuggable) vs **agents** (dynamic step planning, flexible, but unpredictable). Frameworks like **LangGraph** model applications as state graphs with loops, checkpointing, and human interrupts, providing a durable-execution engine.</p>
+
+        <h4 class="mini-title">Sample Python MCP Tool Server Code</h4>
+        <div class="code-block"><span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
+
+# Initialize FastMCP Server
+mcp = FastMCP(<span class="st">"DatabaseHelper"</span>)
+
+@mcp.tool()
+<span class="kw">def</span> <span class="fn">query_user_db</span>(user_id: <span class="cls">int</span>) -> <span class="cls">str</span>:
+    <span class="cm">"""Retrieves user profile metadata from database."""</span>
+    <span class="kw">return</span> db.get_user_info(user_id)
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    mcp.run()</div>
+
+        <h3 class="subsection">20. Linux, Networking & Storage Fundamentals</h3>
+        <p>The ceiling of an LLM system is set by OS, networking, and storage fundamentals:</p>
+        <ul>
+          <li><strong>Linux:</strong> CPU/memory limits are isolated via **cgroups and namespaces** (container primitives). Multi-socket machines use **NUMA** (Non-Uniform Memory Access); pinning GPU processes to their nearest NUMA node avoids slow cross-socket bus hops. Manage/observe via <span class="inline-code">nvidia-smi</span>, <span class="inline-code">nvtop</span>, <span class="inline-code">dmesg</span>.</li>
+          <li><strong>Networking:</strong> Latency vs bandwidth. RDMA/GPUDirect RDMA bypasses CPU/OS overhead for GPU-to-GPU network transfers. Serving rides on streaming protocols: SSE (Server-Sent Events) and WebSockets for token streaming, gRPC and HTTP/2 for high-concurrency RPCs.</li>
+          <li><strong>Storage:</strong> Local NVMe SSD is fast and ephemeral, perfect for caching model weights to VRAM. Object storage is cheap but high-latency. Loading weights fast uses memory-mapping (e.g. safetensors zero-copy loads).</li>
+        </ul>
+        <div class="insight">
+          <strong>NUMA Pinning:</strong> Pinning the data-loader processes to the NUMA node directly wired to the GPU PCIe lanes can prevent severe bottlenecks in multi-socket CPU systems.
+        </div>
+
+        <h3 class="subsection">21. PyTorch Internals, CUDA Profiling & Kernel Optimization</h3>
+        <p>This is where frameworks meet GPU instructions:</p>
+        
+        <p><strong>PyTorch Internals:</strong> PyTorch is a dynamic <em>define-by-run</em> framework. **Autograd** records the forward pass on a graph of Function nodes and replays it in reverse for the backward pass, storing activations in memory (a major source of OOMs, mitigated by gradient checkpointing). CUDA operations are asynchronous: Python launches kernels onto streams and continues immediately; you must run <span class="inline-code">torch.cuda.synchronize()</span> to get accurate timings. **`torch.compile`** uses Inductor and Triton to compile graphs and fuse operations into optimized kernels.</p>
+        
+        <p><strong>CUDA Profiling:</strong> **Nsight Systems** provides a system-wide timeline (exposing CPU-to-GPU launch gaps and data transfer bottlenecks). **Nsight Compute** profiles individual kernels (identifying occupancy and whether a kernel is memory-bound or compute-bound).</p>
+        
+        <p><strong>Kernel Optimization:</strong> The dominant win is **fusion** — combining multiple elementwise operations so they process in registers/SRAM, avoiding redundant reads/writes to global HBM memory. **FlashAttention** is the canonical example: it computes attention in tiles fitting in on-chip SRAM, using an online-softmax scaling trick to never materialize the quadratic N&times;N matrix in HBM, turning attention from memory-bound to compute-bound.</p>
+
+        <h4 class="mini-title">Using torch.compile in PyTorch</h4>
+        <div class="code-block"><span class="kw">import</span> torch
+
+# Compile model to fuse operations and generate optimized CUDA kernels
+optimized_model = torch.compile(
+    model,
+    mode=<span class="st">"max-autotune"</span>,
+    backend=<span class="st">"inductor"</span>
+)
+
+# First run compiles the model (slow); subsequent runs are highly optimized
+output = optimized_model(input_ids)</div>
+      </div>
+    </section>
+
     <!-- ===== SECTION 6: Q&A TRIVIA ===== -->
     <section id="s-trivia" class="section">
       <div class="section-title">Q&A Trivia</div>
@@ -4621,7 +5070,7 @@
         <div class="op-bar-track">
           <div class="op-bar-fill" style="width:0%"></div>
         </div>
-        <div class="op-subtext">0 / 56 topics completed</div>
+        <div class="op-subtext">0 / 77 topics completed</div>
       </div>
 
       <div class="progress-cat">
@@ -4841,6 +5290,75 @@
           </div>
           <div class="check-item" id="ci-cd8" data-id="cd8" onclick="toggleCheck('cd8')">
             <div class="check-box"></div><span class="check-label">LLM output validator with Pydantic retry</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="progress-cat">
+        <div class="progress-cat-header">LLM Systems & Infra <span class="progress-cat-pct">0/21</span></div>
+        <div class="checklist">
+          <div class="check-item" id="ci-sys1" data-id="sys1" onclick="toggleCheck('sys1')">
+            <div class="check-box"></div><span class="check-label">GPU architecture, VRAM, and the CUDA memory hierarchy</span>
+          </div>
+          <div class="check-item" id="ci-sys2" data-id="sys2" onclick="toggleCheck('sys2')">
+            <div class="check-box"></div><span class="check-label">Quantization methods (INT8, FP8, 4-bit, PTQ vs QAT)</span>
+          </div>
+          <div class="check-item" id="ci-sys3" data-id="sys3" onclick="toggleCheck('sys3')">
+            <div class="check-box"></div><span class="check-label">Static vs continuous batching engine schedulers</span>
+          </div>
+          <div class="check-item" id="ci-sys4" data-id="sys4" onclick="toggleCheck('sys4')">
+            <div class="check-box"></div><span class="check-label">KV caching, speculative decoding & prefix caching</span>
+          </div>
+          <div class="check-item" id="ci-sys5" data-id="sys5" onclick="toggleCheck('sys5')">
+            <div class="check-box"></div><span class="check-label">Distributed training (DDP, FSDP, DeepSpeed, ZeRO stages)</span>
+          </div>
+          <div class="check-item" id="ci-sys6" data-id="sys6" onclick="toggleCheck('sys6')">
+            <div class="check-box"></div><span class="check-label">Model serving engines (vLLM, TensorRT-LLM, SGLang)</span>
+          </div>
+          <div class="check-item" id="ci-sys7" data-id="sys7" onclick="toggleCheck('sys7')">
+            <div class="check-box"></div><span class="check-label">Kubernetes, Docker, and GPU scheduling (MIG vs MPS)</span>
+          </div>
+          <div class="check-item" id="ci-sys8" data-id="sys8" onclick="toggleCheck('sys8')">
+            <div class="check-box"></div><span class="check-label">NCCL collectives, InfiniBand fabric, RDMA, GPUDirect</span>
+          </div>
+          <div class="check-item" id="ci-sys9" data-id="sys9" onclick="toggleCheck('sys9')">
+            <div class="check-box"></div><span class="check-label">Multi-GPU and multi-node inference partitioning (TP, PP, EP)</span>
+          </div>
+          <div class="check-item" id="ci-sys10" data-id="sys10" onclick="toggleCheck('sys10')">
+            <div class="check-box"></div><span class="check-label">PEFT fine-tuning, LoRA & QLoRA adapter pipelines</span>
+          </div>
+          <div class="check-item" id="ci-sys11" data-id="sys11" onclick="toggleCheck('sys11')">
+            <div class="check-box"></div><span class="check-label">Vector DB vector indexing (HNSW vs IVF-PQ) & RAG ingestion</span>
+          </div>
+          <div class="check-item" id="ci-sys12" data-id="sys12" onclick="toggleCheck('sys12')">
+            <div class="check-box"></div><span class="check-label">Prompt caching, semantic caching & cost optimization</span>
+          </div>
+          <div class="check-item" id="ci-sys13" data-id="sys13" onclick="toggleCheck('sys13')">
+            <div class="check-box"></div><span class="check-label">Observability & LLM tracing (Prometheus/Grafana, Langfuse)</span>
+          </div>
+          <div class="check-item" id="ci-sys14" data-id="sys14" onclick="toggleCheck('sys14')">
+            <div class="check-box"></div><span class="check-label">LLM capability evaluations (LLM-as-judge, RAGAS, A/B tests)</span>
+          </div>
+          <div class="check-item" id="ci-sys15" data-id="sys15" onclick="toggleCheck('sys15')">
+            <div class="check-box"></div><span class="check-label">Cascade / classifier routing & failover strategies</span>
+          </div>
+          <div class="check-item" id="ci-sys16" data-id="sys16" onclick="toggleCheck('sys16')">
+            <div class="check-box"></div><span class="check-label">Model Context Protocol (MCP) standard, agents & workflows</span>
+          </div>
+          <div class="check-item" id="ci-sys17" data-id="sys17" onclick="toggleCheck('sys17')">
+            <div class="check-box"></div><span class="check-label">Kafka event streaming & real-time streaming inference</span>
+          </div>
+          <div class="check-item" id="ci-sys18" data-id="sys18" onclick="toggleCheck('sys18')">
+            <div class="check-box"></div><span class="check-label">Prompt injection mitigation, guardrails, security bounds</span>
+          </div>
+          <div class="check-item" id="ci-sys19" data-id="sys19" onclick="toggleCheck('sys19')">
+            <div class="check-box"></div><span class="check-label">MLOps CI/CD pipelines, registries, drift & continuous training</span>
+          </div>
+          <div class="check-item" id="ci-sys20" data-id="sys20" onclick="toggleCheck('sys20')">
+            <div class="check-box"></div><span class="check-label">Linux kernel namespaces/NUMA, networking TLS, storage NVMe</span>
+          </div>
+          <div class="check-item" id="ci-sys21" data-id="sys21" onclick="toggleCheck('sys21')">
+            <div class="check-box"></div><span class="check-label">PyTorch autograd graph compile, profiling & kernel fusion</span>
           </div>
         </div>
       </div>
